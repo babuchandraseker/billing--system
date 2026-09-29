@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<title>ரசீது #{{ bill.id }}</title>
+<!-- Preload Tamil fonts so they are ready before print dialog opens -->
+<link rel="preload" href="/static/fonts/NotoSansTamil-Regular.ttf" as="font" type="font/truetype" crossorigin="anonymous">
+<link rel="preload" href="/static/fonts/NotoSansTamil-Bold.ttf" as="font" type="font/truetype" crossorigin="anonymous">
+<link rel="stylesheet" href="/static/thermal_receipt.css">
+<style>
+  /* Inline @font-face ensures font loads even if CSS @font-face is cached stale */
+  @font-face {
+    font-family: "Noto Sans Tamil";
+    src: url('/static/fonts/NotoSansTamil-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+  }
+  @font-face {
+    font-family: "Noto Sans Tamil";
+    src: url('/static/fonts/NotoSansTamil-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+    font-display: block;
+  }
+  /* Tamil PDF: 76mm container, proportional Tamil glyphs via HTML table */
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    width: 80mm;
+    font-family: "Noto Sans Tamil", "Latha", sans-serif;
+  }
+  .thermal-wrapper {
+    width: 76mm;
+    margin: 0;
+    padding: 0;
+  }
+</style>
+</head>
+<body class="{% if preview %}preview-mode{% endif %}">
+{% if preview %}
+<div class="no-print no-print-hint">முன்னோட்டம் மட்டும்</div>
+{% endif %}
+
+<div class="thermal-wrapper">
+  <div class="thermal-bill ta thermal-tamil">
+    {#
+      Tamil PDF: uses receipt_html (HTML-table layout) for correct proportional Tamil glyph rendering.
+      Tamil Unicode glyphs are NOT monospace — receipt_full (48-col pre) cannot align them correctly.
+      receipt_html uses CSS flexbox/table — completely INDEPENDENT from English formatting.
+      Fallback to receipt_full pre only when receipt_html is unavailable.
+    #}
+    {% if receipt_html %}
+      <div class="ta-html-receipt">{{ receipt_html | safe }}</div>
+    {% else %}
+      <pre class="receipt-pre receipt-full" lang="ta">{{ receipt_full }}</pre>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function () {
+  try {
+    var params = new URLSearchParams(window.location.search || "");
+    if (params.get("pos_reset") !== "1") return;
+    var billId = "{{ bill.id }}";
+    // Wait for fonts to be fully loaded before opening print dialog.
+    // This is the key fix: without this, the browser may print before
+    // Noto Sans Tamil is ready, resulting in blank/box Tamil glyphs.
+    function doPrint() {
+      setTimeout(function() { try { window.print(); } catch(e) {} }, 200);
+    }
+    window.addEventListener("load", function() {
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(doPrint);
+      } else {
+        // Fallback for older browsers — wait 800ms for fonts
+        setTimeout(doPrint, 800);
+      }
+    });
+    window.addEventListener("afterprint", function() {
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: "POS_PRINT_DONE", bill_id: billId }, "*");
+        }
+      } catch(e) {}
+      try { window.close(); } catch(e) {}
+    });
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

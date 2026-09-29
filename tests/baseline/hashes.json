@@ -1,0 +1,50 @@
+{
+ "paid_exact.english.normal": {
+  "sha": "38a8da9b1673204325f84a6df8406d19114fff3a51509088df2873a4df5d123a",
+  "len": 1672
+ },
+ "paid_exact.english.estimate": {
+  "sha": "0b4bb604c4a4ffd0f45974b937007d7a097227935a1499039da74f7fca292119",
+  "len": 1417
+ },
+ "paid_exact.tamil.normal": {
+  "sha": "7712ed3274094c73a4378842b8728d3b2bbf264395004a9cf31fc81e6ef8a507",
+  "len": 61730
+ },
+ "paid_exact.tamil.estimate": {
+  "sha": "c3aa7a0d4c4836c880fd1d6336aadbf2e3be978f75a0cffbd916f3e18a1d9069",
+  "len": 54098
+ },
+ "paid_change.english.normal": {
+  "sha": "f3b4369583e4e88c2f61544aacd116416fc67869836a6b2b6e5f0c36c866d6a4",
+  "len": 1647
+ },
+ "paid_change.english.estimate": {
+  "sha": "c5586fd6922e3a73cf81d486a75b2d1578fa877484c499396e40e309aa9bc5fc",
+  "len": 1392
+ },
+ "paid_change.tamil.normal": {
+  "sha": "e60d6d9005c2a341d39d710cf3cd107f3d726cfe66e2ab4e68a7b3151766dd66",
+  "len": 59426
+ },
+ "paid_change.tamil.estimate": {
+  "sha": "225f9154e96041582247f9c205ab02e53c2e41108655296f03bc89bcbaa97c42",
+  "len": 51794
+ },
+ "upi.english.normal": {
+  "sha": "0162275680d7d6655ea6a75d50190a02157bf1915194ca9c5262ec04dc02109e",
+  "len": 1486
+ },
+ "upi.english.estimate": {
+  "sha": "f384234ff24de163402eafe41a8794bfe953290ee51f627ed71af9de08bc20e2",
+  "len": 1231
+ },
+ "upi.tamil.normal": {
+  "sha": "1be01f8598ff138a7e99a802fd49a6dd6ff8dde3a8082a6db531d9fba107e247",
+  "len": 48194
+ },
+ "upi.tamil.estimate": {
+  "sha": "042638866c8adcb84913fb4c5a8019423bb8d6220e38db8801e25702a56ec1ca",
+  "len": 40562
+ }
+}

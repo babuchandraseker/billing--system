@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Printer Settings & Diagnostics</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; background: #f8fafc; color: #1e293b; }
+  .card { background: #ffffff; padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); margin-bottom: 20px; }
+  h1 { font-size: 1.4rem; color: #0f172a; margin-top: 0; }
+  h2 { font-size: 1.15rem; color: #166534; margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+  p { color: #475569; font-size: 14px; line-height: 1.5; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 13px; text-decoration: none; cursor: pointer; border: none; }
+  .btn-primary { background: #166534; color: #fff; }
+  .btn-secondary { background: #0f766e; color: #fff; }
+  .btn-outline { background: #fff; color: #475569; border: 1px solid #cbd5e1; }
+  .btn:hover { opacity: 0.9; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .checklist { display: flex; flex-direction: column; gap: 8px; font-size: 13px; margin: 16px 0; }
+  .checklist label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h1>🖨️ Thermal Printer Diagnostics</h1>
+      <a href="/" class="btn btn-outline">← Back to Billing</a>
+    </div>
+    <p>Configure printer in POS app: <strong>Admin → Printer</strong>.</p>
+  </div>
+
+  <div class="card" style="border-top:4px solid #166534;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h2>🔬 Tamil Hardware Validation Mode</h2>
+      <span id="hw-status-badge" class="badge" style="background:#e2e8f0;color:#475569;">AWAITING TEST</span>
+    </div>
+    <p>Test raw ESC/POS bitImageRaster (576px / 80mm) with HarfBuzz shaping on the client's physical thermal printer.</p>
+    
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:16px 0;">
+      <button onclick="runTest('raw-raster')" class="btn btn-secondary">⚡ TEST 1: Raw Raster Test</button>
+      <button onclick="runTest('full-bill')" class="btn btn-primary">🧾 TEST 2: Full Tamil Bill Test</button>
+      <a href="/debug/tamil-preview" target="_blank" class="btn btn-outline">🖼️ Visual Simulator</a>
+    </div>
+
+    <div id="meta-card" style="display:none;background:#f1f5f9;padding:14px;border-radius:8px;margin-top:16px;">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <strong style="font-size:13px;">📊 Test Telemetry</strong>
+        <span class="badge" style="background:#10b981;color:#fff;">SOFTWARE VALIDATION: PASS</span>
+      </div>
+      <div class="grid">
+        <div><strong>Width:</strong> <span id="m-w">576px</span></div>
+        <div><strong>Height:</strong> <span id="m-h">-</span></div>
+        <div><strong>Bytes:</strong> <span id="m-b">-</span></div>
+        <div><strong>Transport:</strong> <span id="m-t">-</span></div>
+        <div><strong>Paper:</strong> 80mm</div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;">
+        <a href="/debug/client-hardware-test.png" target="_blank" style="color:#0f766e;font-weight:600;margin-right:12px;">🖼️ View PNG Bitmap</a>
+        <a href="/debug/client-hardware-test.bin" download="client_tamil_hardware_test.bin" style="color:#7c3aed;font-weight:600;">💾 Download Raw ESC/POS (.bin)</a>
+      </div>
+      <div id="m-msg" style="margin-top:6px;font-size:11px;color:#64748b;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📋 Test 4: Physical Paper Validation Checklist</h2>
+    <p>Check each item after physical paper printout from the thermal printer:</p>
+    <form id="confirm-form" onsubmit="confirmPhysical(event)">
+      <div class="checklist">
+        <label><input type="checkbox" name="tamil_glyphs_readable" required /> <span>Tamil glyphs readable (No jumbled text)</span></label>
+        <label><input type="checkbox" name="tamil_vowels_consonants_correct" required /> <span>Tamil vowel/consonant combinations correct (Proper pre-base vowels ெ, ே, ை)</span></label>
+        <label><input type="checkbox" name="no_missing_glyphs" required /> <span>No missing glyphs or square boxes</span></label>
+        <label><input type="checkbox" name="no_clipping_left" required /> <span>No clipping on left margin</span></label>
+        <label><input type="checkbox" name="no_clipping_right" required /> <span>No clipping on right margin (Full 80mm width utilized)</span></label>
+        <label><input type="checkbox" name="product_names_wrap" required /> <span>Product names wrap correctly without touching Qty</span></label>
+        <label><input type="checkbox" name="qty_column_aligned" required /> <span>Qty column properly right-aligned</span></label>
+        <label><input type="checkbox" name="amount_column_aligned" required /> <span>Amount column properly right-aligned</span></label>
+        <label><input type="checkbox" name="currency_and_numbers_correct" required /> <span>₹ symbol and numbers correct</span></label>
+        <label><input type="checkbox" name="total_correct" required /> <span>Total row prominent with double rules</span></label>
+        <label><input type="checkbox" name="payment_section_correct" required /> <span>Payment section (Mode, Paid, Due, Loyalty) aligned</span></label>
+        <label><input type="checkbox" name="footer_complete" required /> <span>Footer complete with greetings and paper cut</span></label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;">
+        <div>
+          <label style="font-size:12px;font-weight:600;">Operator Name</label>
+          <input type="text" id="op-name" placeholder="Operator Name" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box;" required />
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;">Notes</label>
+          <input type="text" id="op-notes" placeholder="e.g. Crisp dark print on 80mm" style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box;" />
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">✅ Confirm Physical Print Validation</button>
+    </form>
+  </div>
+
+  <script>
+    async function runTest(type) {
+      const url = type === 'raw-raster' ? '/api/printer/hardware-test/raw-raster' : '/api/printer/hardware-test/full-bill';
+      try {
+        const r = await fetch(url, { method: 'POST' });
+        const d = await r.json();
+        if (d.success) {
+          document.getElementById('meta-card').style.display = 'block';
+          document.getElementById('m-w').textContent = d.bitmap_width + 'px';
+          document.getElementById('m-h').textContent = d.bitmap_height + 'px';
+          document.getElementById('m-b').textContent = d.escpos_bytes_length + ' bytes';
+          document.getElementById('m-t').textContent = d.printer_transport;
+          document.getElementById('m-msg').textContent = d.print_status + ': ' + d.print_message;
+          
+          const badge = document.getElementById('hw-status-badge');
+          if (badge.textContent !== 'PHYSICAL PRINTER VALIDATION: PASS') {
+            badge.style.background = '#0284c7';
+            badge.style.color = '#fff';
+            badge.textContent = 'SOFTWARE VALIDATION: PASS';
+          }
+          alert('Test generated successfully! Software validation: PASS');
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    async function confirmPhysical(e) {
+      e.preventDefault();
+      const form = document.getElementById('confirm-form');
+      const checklist = {
+        tamil_glyphs_readable: form.tamil_glyphs_readable.checked,
+        tamil_vowels_consonants_correct: form.tamil_vowels_consonants_correct.checked,
+        no_missing_glyphs: form.no_missing_glyphs.checked,
+        no_clipping_left: form.no_clipping_left.checked,
+        no_clipping_right: form.no_clipping_right.checked,
+        product_names_wrap: form.product_names_wrap.checked,
+        qty_column_aligned: form.qty_column_aligned.checked,
+        amount_column_aligned: form.amount_column_aligned.checked,
+        currency_and_numbers_correct: form.currency_and_numbers_correct.checked,
+        total_correct: form.total_correct.checked,
+        payment_section_correct: form.payment_section_correct.checked,
+        footer_complete: form.footer_complete.checked,
+      };
+      const operator_name = document.getElementById('op-name').value;
+      const notes = document.getElementById('op-notes').value;
+      try {
+        const r = await fetch('/api/printer/hardware-test/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checklist, operator_name, notes })
+        });
+        const d = await r.json();
+        if (d.success) {
+          const badge = document.getElementById('hw-status-badge');
+          badge.style.background = '#166534';
+          badge.style.color = '#fff';
+          badge.textContent = 'PHYSICAL PRINTER VALIDATION: PASS';
+          alert('🎉 Physical printer validation recorded: PASS');
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+  </script>
+</body>
+</html>

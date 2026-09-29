@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="ta-en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DHANA DHANYA KADAI – Billing</title>
+  <!-- Fix 3: Tamil font support — Noto Sans Tamil covers all Tamil Unicode glyphs -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=20" />
+</head>
+
+<body>
+
+  <!-- ══════════════ OFFLINE BANNER ══════════════ -->
+  <div id="offline-banner" style="display:none;">
+    <div class="offline-inner">
+      <div class="offline-icon">⚠️</div>
+      <div class="offline-text">
+        <strong>Backend server is not running</strong>
+        <span>Products and data cannot load. Please run <code>run.bat</code> to start the server.</span>
+      </div>
+      <div class="offline-steps">
+        <div class="offline-step">1. Close this browser tab</div>
+        <div class="offline-step">2. Double-click <strong>run.bat</strong> in your billing folder</div>
+        <div class="offline-step">3. Wait for the server window to open</div>
+        <div class="offline-step">4. The billing page will open automatically ✅</div>
+      </div>
+      <div class="offline-retry">
+        <span id="offline-retry-txt">🔄 Auto-retrying every 3 seconds…</span>
+        <button onclick="fetchProducts()" class="btn-retry">Retry Now</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ HEADER ══════════════ -->
+  <header class="header">
+    <div class="header-left">
+      <span class="header-emoji">🌾</span>
+      <div class="header-brand">
+        <h1>DHANA DHANYA KADAI</h1>
+        <span>தனா தனியா கடை &mdash; பறவை தீவன நிலையம்</span>
+        <span class="header-phones">📞 99401 16970 | 99443 08925</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="hdr-btn active" id="tab-billing" onclick="setTab('billing')">🧾 Billing</button>
+      <button class="hdr-btn" id="tab-admin" onclick="setTab('admin')">⚙️ Admin</button>
+      <button class="hdr-btn" id="tab-analytics" onclick="setTab('analytics')">📊 Analytics</button>
+      <button class="hdr-btn hdr-btn--catalog" id="btn-open-catalog" onclick="openCatalog()"
+        title="Open Product Catalog PDF — print or save as PDF (Alt+C)">📄 Open Catalog</button>
+      <button class="hdr-btn" onclick="window.location.href='/logout'" title="Logout">🔒 Logout</button>
+    </div>
+    <div class="header-end">
+      <div class="clock" id="clock">00:00:00</div>
+    </div>
+  </header>
+
+  <!-- ══════════════ SHORTCUT BAR ══════════════ -->
+  <div class="shortcut-bar">
+    <div class="sc-group" id="sc-dynamic-group">
+      <!-- Populated dynamically by _renderShortcutBar() on DOMContentLoaded -->
+      <span class="sc-item"><kbd>Ctrl+N</kbd><span class="sc-label">New Bill</span></span>
+      <span class="sc-item"><kbd>F1</kbd><span class="sc-label">Search</span></span>
+      <span class="sc-item"><kbd>F2</kbd><span class="sc-label">Products</span></span>
+      <span class="sc-item"><kbd>F3</kbd><span class="sc-label">Print Bill</span></span>
+      <span class="sc-item"><kbd>F6</kbd><span class="sc-label">Customer</span></span>
+      <span class="sc-item"><kbd>R</kbd><span class="sc-label">Repeat Bill</span></span>
+      <span class="sc-item"><kbd>F4</kbd><span class="sc-label">Clear Cart</span></span>
+      <span class="sc-item"><kbd>Ctrl+W</kbd><span class="sc-label">WhatsApp</span></span>
+      <span class="sc-item"><kbd>F8</kbd><span class="sc-label">Help</span></span>
+      <span class="sc-item"><kbd>Alt+P</kbd><span class="sc-label">Add Product</span></span>
+      <span class="sc-item"><kbd>Ctrl+B</kbd><span class="sc-label">Billing</span></span>
+      <span class="sc-item"><kbd>Ctrl+A</kbd><span class="sc-label">Admin</span></span>
+    </div>
+  </div>
+
+  <!-- ══════════════ BILLING SECTION ══════════════ -->
+  <div id="section-billing">
+    <div class="app-layout">
+
+      <!-- LEFT: Products Panel -->
+      <div class="left-panel">
+
+        <!-- Search + Categories toolbar -->
+        <div class="toolbar">
+          <div class="search-row">
+            <div class="search-wrap">
+              <svg class="search-icon" viewBox="0 0 20 20" fill="none">
+                <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.7" />
+                <path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+              </svg>
+              <input type="text" id="productSearch" class="no-enter-nav"
+                placeholder="Search by name, Tamil or Tanglish…" oninput="renderProducts()" autocomplete="off" />
+            </div>
+            <div class="product-count-badge" id="product-count-badge">218 products</div>
+          </div>
+
+          <!-- Pricing Mode Selector -->
+          <div class="pricing-mode-bar">
+            <span class="pm-label">💰 Price Mode:</span>
+            <button class="pm-btn" id="pm-srate" onclick="setPricingMode('s_rate')"
+              title="Standard selling rate">S.Rate</button>
+            <button class="pm-btn" id="pm-prate" onclick="setPricingMode('p_rate')"
+              title="Purchase / cost rate">P.Rate</button>
+            <button class="pm-btn" id="pm-wholesale" onclick="setPricingMode('wholesale')"
+              title="Wholesale rate (set per product in Admin)">Wholesale</button>
+          </div>
+          <!-- Category pills — populated dynamically by JS -->
+          <div class="cat-pills" id="cat-pills">
+            <button class="cpill active" onclick="filterCat('All',this)" data-cat="All">All</button>
+          </div>
+        </div>
+
+
+
+        <!-- Product Grid -->
+        <div class="products-grid" id="products-grid">
+          <div class="state-msg">⏳ Loading products…</div>
+        </div>
+
+        <!-- Keyboard hint -->
+      </div>
+
+      <!-- RIGHT: Bill Panel -->
+      <aside class="bill-panel">
+
+        <!-- ① Customer Info -->
+        <div class="bp-section bp-customer">
+          <div class="bp-section-title" onclick="toggleCustomerInfo()" style="cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+            </svg>
+            CUSTOMER INFO <kbd style="font-size:9px;font-weight:600;opacity:.7;margin-left:4px;">F4</kbd><span
+              id="customer-toggle-arrow" style="margin-left:auto;font-size:14px;transition:transform .2s;">▼</span>
+          </div>
+          <div class="customer-inputs" id="customer-inputs-collapsible" style="display:none;">
+            <input type="text" id="customer-phone" placeholder="Phone (10 digits)" oninput="lookupCustomer(this.value)"
+              onkeydown="handleRepeatBillPhoneKey(event)" maxlength="15" autocomplete="tel" />
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="text" id="customer-name" placeholder="Customer name (English)" style="flex:1;" />
+            </div>
+            <!-- Tamil name: shown only in Tamil bill mode -->
+            <div id="customer-name-ta-wrap" style="display:none;flex;gap:6px;align-items:center;">
+              <input type="text" id="customer-name-ta" placeholder="வாடிக்கையாளர் பெயர் (தமிழில்)" lang="ta"
+                autocomplete="off" style="flex:1;" />
+              <button type="button" id="cust-name-ta-toggle" onclick="tamilTranslit.toggle('customer-name-ta')"
+                style="white-space:nowrap;padding:5px 8px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:11px;background:#f0fdf4;color:#166534;"
+                title="Toggle Tamil typing">⌨️ தமிழ்</button>
+            </div>
+            <button type="button" class="btn-repeat-bill" onclick="repeatLatestBillFromPhone()">Repeat Bill</button>
+            <div id="repeat-bill-preview" style="display:none;"></div>
+          </div>
+        </div>
+
+        <!-- Loyalty Stars Panel — clean centered display -->
+        <div id="loyalty-panel" style="display:none;">
+          <div class="loyalty-center">
+            <div>⭐ Loyalty</div>
+            <div id="lp-hint-text">Earn stars to get discount</div>
+          </div>
+        </div>
+
+        <!-- ② Bill Header -->
+        <div class="bp-bill-header">
+          <div class="bp-bill-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            BILL ITEMS
+            <span class="bill-count-chip" id="bill-item-chip">0</span>
+          </div>
+          <div class="bp-bill-controls">
+            <div class="lang-toggle">
+              <button class="lang-btn active" id="lang-en" onclick="setBillLang('en')" title="English bill (Ctrl+L)">EN
+                <kbd style="font-size:9px;opacity:.7;">Ctrl+L</kbd></button>
+              <button class="lang-btn" id="lang-ta" onclick="setBillLang('ta')" title="Tamil bill (Ctrl+L)">தமிழ் <kbd
+                  style="font-size:9px;opacity:.7;">Ctrl+L</kbd></button>
+            </div>
+            <!-- Bill Type toggle: Normal / Estimate -->
+            <div class="lang-toggle" id="bill-type-toggle" title="Bill Type">
+              <button class="lang-btn active" id="btype-normal" onclick="setBillType('normal')">Normal</button>
+              <button class="lang-btn" id="btype-estimate" onclick="setBillType('estimate')">Estimate</button>
+            </div>
+            <button class="btn-clear" onclick="clearCart()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Cart List -->
+        <div class="cart-list" id="cart-list">
+          <div class="empty-cart">
+            <div class="empty-cart-icon">🛒</div>
+            <p>No items yet</p>
+            <span>Select a product and press <kbd>Enter</kbd></span>
+          </div>
+        </div>
+
+        <!-- ③ Bill Footer / Totals -->
+        <div class="bill-footer" id="bill-footer" style="display:none">
+          <div class="bill-summary-row">
+            <span>Items</span>
+            <span id="bill-item-count">0</span>
+          </div>
+          <div class="bill-total-grand">
+            <span class="total-label">TOTAL</span>
+            <span class="total-amount" id="bill-total"><span class="currency">₹</span><span
+                class="value">0.00</span></span>
+          </div>
+          <!-- Loyalty discount display — shown only when applyLoyaltyReward is true -->
+          <div id="loyalty-discount-row"
+            style="display:none;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;">
+            <span style="color:var(--muted);">Subtotal</span>
+            <span id="bill-subtotal-amt" style="color:var(--muted);">₹0.00</span>
+          </div>
+          <div id="loyalty-discount-line"
+            style="display:none;justify-content:space-between;align-items:center;padding:3px 0;font-size:12px;font-weight:700;">
+            <span style="color:#16a34a;">🎁 Loyalty Discount</span>
+            <span id="bill-discount-amt" style="color:#16a34a;">−₹0</span>
+          </div>
+          <div class="bill-summary-row balance-row" id="balance-row" style="display:none">
+            <span>Balance</span>
+            <span id="balance-amt"><span class="currency">₹</span><span class="value">0.00</span></span>
+          </div>
+          <div class="cash-input-wrap">
+            <input type="number" id="cash-input" placeholder="Amount paid (₹)" oninput="updateTotals()" />
+          </div>
+
+          <!-- Payment method — controlled via Credits action button -->
+          <div style="display:none;" id="payment-method-toggle">
+            <button class="pm-method-btn active" id="pm-cash" onclick="setPaymentMethod('cash')">Cash</button>
+            <button class="pm-method-btn" id="pm-upi" onclick="setPaymentMethod('upi')">UPI</button>
+            <button class="pm-method-btn" id="pm-credit" onclick="setPaymentMethod('credit')">Credit</button>
+          </div>
+
+          <!-- ── Credit & Due: shown only when Credit is selected ── -->
+          <div id="credit-due-section" style="display:none;">
+            <div style="display:flex;gap:6px;align-items:center;">
+              <label style="font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;">Amount Paid ₹</label>
+              <input type="number" id="paid-amount-input" placeholder="0.00" min="0" step="0.01"
+                oninput="updateTotals()"
+                style="flex:1;padding:5px 8px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:700;color:var(--text);background:var(--surface);outline:none;font-family:var(--font);" />
+            </div>
+            <div class="bill-summary-row" id="due-row"
+              style="display:none;background:#FEF3C7;border-radius:6px;padding:4px 8px;">
+              <span style="font-weight:700;color:#92400E;">💳 Due Amount</span>
+              <span style="font-weight:800;color:#DC2626;" id="due-amt">₹0.00</span>
+            </div>
+            <!-- Warning: customer has outstanding due -->
+            <div id="customer-due-warning"
+              style="display:none;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:8px;padding:5px 10px;font-size:11px;color:#991B1B;font-weight:600;">
+              ⚠️ This customer has <span id="warning-due-amount">₹0</span> pending!
+            </div>
+          </div>
+        </div>
+
+        <!-- Bill Actions — pinned outside footer so actions always visible -->
+        <div class="bill-actions" id="bill-actions-bar" style="display:none;">
+          <button class="btn-action btn-print" onclick="printBill()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Print
+          </button>
+          <button class="btn-action btn-whatsapp" onclick="sendBillToWhatsApp(currentBill)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path
+                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+            </svg>
+            WA
+          </button>
+          <button class="btn-action btn-credits" onclick="setPaymentMethod('credit')" title="Credit / Due">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+              <line x1="1" y1="10" x2="23" y2="10" />
+            </svg>
+            Credits
+          </button>
+        </div>
+
+      </aside>
+    </div>
+  </div>
+
+  <!-- ══════════════ ADMIN SECTION ══════════════ -->
+  <div id="section-admin" style="display:none;" class="section-page admin-layout">
+
+    <!-- ══ LEFT SIDEBAR ══ -->
+    <aside class="admin-sidebar" id="admin-sidebar">
+      <!-- Sidebar Header -->
+      <div class="adm-sidebar-header">
+        <div class="adm-sidebar-logo">
+          <span class="adm-sidebar-logo-icon">⚙️</span>
+          <div class="adm-sidebar-logo-text">
+            <span class="adm-sidebar-title">Admin Panel</span>
+            <span class="adm-sidebar-sub">DHANA DHANYA KADAI</span>
+          </div>
+        </div>
+        <button class="adm-sidebar-collapse-btn" id="adm-collapse-btn" onclick="toggleAdminSidebar()"
+          title="Collapse sidebar">‹</button>
+      </div>
+
+      <!-- Sidebar Nav -->
+      <nav class="adm-sidebar-nav">
+
+        <!-- HIGH PRIORITY -->
+        <div class="adm-nav-group">
+          <span class="adm-nav-group-label">Inventory</span>
+          <button class="adm-nav-item active" id="atab-products" onclick="switchAdminTab('products')">
+            <span class="adm-nav-icon">📦</span>
+            <span class="adm-nav-label">Products</span>
+          </button>
+          <button class="adm-nav-item" id="atab-stock" onclick="switchAdminTab('stock')">
+            <span class="adm-nav-icon">📊</span>
+            <span class="adm-nav-label">Stock</span>
+          </button>
+          <button class="adm-nav-item" id="atab-packages" onclick="switchAdminTab('packages')">
+            <span class="adm-nav-icon">🎁</span>
+            <span class="adm-nav-label">Packages</span>
+          </button>
+          <button class="adm-nav-item" id="atab-customers" onclick="switchAdminTab('customers')">
+            <span class="adm-nav-icon">👥</span>
+            <span class="adm-nav-label">Customers</span>
+          </button>
+        </div>
+
+        <!-- MEDIUM PRIORITY -->
+        <div class="adm-nav-group">
+          <span class="adm-nav-group-label">Reports</span>
+          <button class="adm-nav-item" id="atab-daily" onclick="switchAdminTab('daily')">
+            <span class="adm-nav-icon">📅</span>
+            <span class="adm-nav-label">Daily Report</span>
+          </button>
+          <button class="adm-nav-item" id="atab-credit" onclick="switchAdminTab('credit')">
+            <span class="adm-nav-icon">💳</span>
+            <span class="adm-nav-label">Credit Report</span>
+          </button>
+          <button class="adm-nav-item" id="atab-loyalty" onclick="switchAdminTab('loyalty')">
+            <span class="adm-nav-icon">⭐</span>
+            <span class="adm-nav-label">Loyalty</span>
+          </button>
+        </div>
+
+        <!-- LOW PRIORITY -->
+        <div class="adm-nav-group">
+          <span class="adm-nav-group-label">Settings</span>
+          <button class="adm-nav-item" id="atab-shortcuts" onclick="switchAdminTab('shortcuts')">
+            <span class="adm-nav-icon">⌨️</span>
+            <span class="adm-nav-label">Shortcuts</span>
+          </button>
+          <button class="adm-nav-item" id="atab-printer" onclick="switchAdminTab('printer')">
+            <span class="adm-nav-icon">🖨️</span>
+            <span class="adm-nav-label">Printer</span>
+          </button>
+          <button class="adm-nav-item" id="atab-password" onclick="openPwModal()">
+            <span class="adm-nav-icon">🔐</span>
+            <span class="adm-nav-label">Change Password</span>
+          </button>
+        </div>
+
+      </nav>
+
+      <!-- Sidebar Footer: Exports -->
+      <div class="adm-sidebar-footer">
+        <div class="adm-footer-label">Quick Exports</div>
+        <button class="adm-footer-btn" onclick="adminDownloadDB()" title="Download Backup">
+          <span>💾</span><span class="adm-nav-label">Backup DB</span>
+        </button>
+        <button class="adm-footer-btn" onclick="adminExportBills()" title="Export Bills Excel">
+          <span>📄</span><span class="adm-nav-label">Export Bills</span>
+        </button>
+        <button class="adm-footer-btn" onclick="adminExportProducts()" title="Export Products Excel">
+          <span>📦</span><span class="adm-nav-label">Export Products</span>
+        </button>
+        <div class="adm-bill-reset">
+          <span class="adm-nav-label"
+            style="font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:5px;">🔢 Next Bill
+            #</span>
+          <div style="display:flex;gap:5px;">
+            <input type="number" id="reset-bill-start" min="1" value="1" class="adm-bill-input" />
+            <button onclick="adminResetBillNumber()" class="adm-bill-reset-btn" title="Set Next Bill Number">🔄</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ══ MAIN CONTENT AREA ══ -->
+    <main class="admin-main" id="admin-main">
+      <div id="adm-products-panel">
+        <div class="admin-card">
+          <h3>➕ Add New Product</h3>
+          <div class="admin-form">
+            <div class="form-group">
+              <label>S.NO (catalog order) — leave blank to auto-assign</label>
+              <input type="number" id="adm-serial-no" min="1" step="1" placeholder="e.g. 42 (blank = next available)" />
+            </div>
+            <div class="form-group">
+              <label>English Name</label>
+              <input type="text" id="adm-name-en" placeholder="e.g. Rice" oninput="autoTranslateToTamil()"
+                onblur="autoTranslateToTamil()" />
+            </div>
+            <div class="form-group">
+              <label>Tamil Name</label>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><input type="text" id="adm-name-ta"
+                  placeholder="e.g. அரிசி (type English → Tamil)" lang="ta" autocomplete="off" style="flex:1;" /><button
+                  type="button" id="adm-name-ta-translit-toggle" onclick="tamilTranslit.toggle('adm-name-ta')"
+                  style="white-space:nowrap;padding:4px 10px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:12px;">⌨️
+                  தமிழ் ON</button><button type="button" id="adm-name-ta-kbd-toggle"
+                  onclick="tamilKeyboard.toggle('adm-name-ta')"
+                  style="white-space:nowrap;padding:4px 10px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:12px;">⌨️
+                  Keyboard</button></div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label>S.Rate / Retail (₹/kg)</label>
+                <input type="number" id="adm-srate" value="" min="0" placeholder="Selling rate" />
+              </div>
+              <div class="form-group">
+                <label>P.Rate / Cost (₹/kg)</label>
+                <input type="number" id="adm-prate" value="" min="0" placeholder="Purchase rate" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Wholesale Rate (₹/kg) — optional</label>
+              <input type="number" id="adm-wholesale" value="" min="0" placeholder="Leave blank to disable wholesale" />
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <select id="adm-cat" style="width:100%;">
+                <option>Millets</option>
+                <option>Rice Varieties</option>
+                <option>Oats &amp; Cereals</option>
+                <option>Corn &amp; Maize</option>
+                <option>Pulses &amp; Legumes</option>
+                <option>Sorghum &amp; Grain</option>
+                <option>Groundnuts</option>
+                <option>Nuts &amp; Dry Fruits</option>
+                <option>Seeds</option>
+                <option>Spices &amp; Condiments</option>
+                <option>Ayurvedic Herbs &amp; Roots</option>
+                <option>Bird Feed Mixes</option>
+                <option>Pet &amp; Animal Feed</option>
+                <option>Minerals &amp; Grit</option>
+                <option>Honey &amp; Natural Sweeteners</option>
+                <option>Processed Products</option>
+                <option>Miscellaneous / Internal</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Emoji</label>
+              <input type="text" id="adm-emoji" value="🌾" />
+            </div>
+            <div class="form-group">
+              <label>Extra Search Tags</label>
+              <input type="text" id="adm-tags" placeholder="comma,separated,tanglish" />
+            </div>
+            <div class="form-group">
+              <label>Product Image (optional)</label>
+              <input type="file" id="adm-add-image" accept="image/*" onchange="previewAddImage(event)" />
+              <img id="adm-add-img-preview" src=""
+                style="display:none;max-width:100%;max-height:100px;border-radius:8px;margin-top:6px;object-fit:cover;" />
+            </div>
+            <!-- Nutrient Values (per 100g) -->
+            <div class="form-group" style="margin-top:8px;">
+              <label style="font-weight:700;color:#7C3AED;">🧬 Nutrient Values (per 100g) — optional</label>
+              <small style="color:#888;display:block;margin-bottom:6px;">Leave blank to use auto-detected defaults from
+                nutrition engine</small>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group"><label>Protein (g)</label><input type="number" id="adm-nut-protein" step="0.1"
+                  min="0" placeholder="e.g. 7.0" /></div>
+              <div class="form-group"><label>Absorbable Protein (g)</label><input type="number" id="adm-nut-abs-protein"
+                  step="0.1" min="0" placeholder="e.g. 5.5" /></div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group"><label>Fat (g)</label><input type="number" id="adm-nut-fat" step="0.1" min="0"
+                  placeholder="e.g. 1.5" /></div>
+              <div class="form-group"><label>Carbohydrates (g)</label><input type="number" id="adm-nut-carbs" step="0.1"
+                  min="0" placeholder="e.g. 72" /></div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group"><label>Fiber (g)</label><input type="number" id="adm-nut-fiber" step="0.1" min="0"
+                  placeholder="e.g. 11" /></div>
+              <div class="form-group"><label>Moisture (g)</label><input type="number" id="adm-nut-moisture" step="0.1"
+                  min="0" placeholder="e.g. 12" /></div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group"><label>Ash (g)</label><input type="number" id="adm-nut-ash" step="0.1" min="0"
+                  max="100" placeholder="e.g. 2.5" /></div>
+            </div>
+            <button id="adm-add-btn" onclick="adminAddProduct()" class="btn-admin-action">➕ Add Product</button>
+          </div>
+        </div>
+        <div class="admin-card" style="margin-top:16px;">
+          <h3>📋 All Products <small>(click row to edit)</small></h3>
+          <input type="text" id="adm-search" placeholder="Filter products…" oninput="renderAdminList()"
+            class="adm-filter-input" />
+          <div id="admin-product-list" class="adm-list-scroll"></div>
+        </div>
+      </div>
+      <div id="adm-stock-panel" style="display:none;">
+        <div class="admin-card">
+          <h3>📊 Stock Management <small>— Set available stock per product (in kg)</small></h3>
+          <input type="text" id="stock-search" placeholder="Filter products…" oninput="renderStockList()"
+            class="adm-filter-input" />
+          <div id="stock-product-list" class="adm-list-scroll"></div>
+        </div>
+      </div>
+      <div id="adm-customers-panel" style="display:none;">
+        <div class="admin-card">
+          <h3>👥 Customers</h3>
+          <div class="cust-toolbar">
+            <input type="text" id="cust-search-input" class="cust-toolbar-search"
+              placeholder="Phone number or customer name" />
+            <button type="button" onclick="searchCustomers()" class="btn-admin-action cust-toolbar-btn">Search</button>
+            <button type="button" onclick="openAddCustomerModal()"
+              class="btn-admin-action cust-toolbar-btn cust-btn-add">➕ Add Customer</button>
+          </div>
+          <div id="cust-search-results"></div>
+        </div>
+      </div>
+      <!-- Add Customer Modal -->
+      <div id="add-cust-overlay" class="wt-overlay" onclick="closeAddCustomerModal()"></div>
+      <div id="add-cust-modal" class="wt-modal" style="width:400px;">
+        <div class="wt-modal-header">
+          <h3>➕ Add Customer</h3>
+          <button type="button" class="wt-close" onclick="closeAddCustomerModal()">✕</button>
+        </div>
+        <div style="padding:18px;display:flex;flex-direction:column;gap:12px;">
+          <div class="form-group">
+            <label>Customer Name</label>
+            <input type="text" id="add-cust-name" placeholder="e.g. Vishnu" autocomplete="name" />
+          </div>
+          <div class="form-group">
+            <label>Phone Number</label>
+            <input type="tel" id="add-cust-phone" placeholder="10-digit mobile" maxlength="15" inputmode="numeric"
+              autocomplete="tel" />
+          </div>
+          <div id="add-cust-error" class="add-cust-error" style="display:none;"></div>
+          <div style="display:flex;gap:10px;margin-top:4px;">
+            <button type="button" onclick="closeAddCustomerModal()" class="btn-add-cust-cancel">Cancel</button>
+            <button type="button" onclick="saveNewCustomer()" class="btn-admin-action"
+              style="flex:2;grid-column:auto;">💾 Save Customer</button>
+          </div>
+        </div>
+      </div>
+      <!-- Edit Product Modal -->
+      <div id="edit-overlay" class="wt-overlay" onclick="closeEditModal()"></div>
+      <div id="edit-modal" class="wt-modal edit-modal-wide">
+        <div class="wt-modal-header">
+          <h3>✏️ Edit Product</h3>
+          <button class="wt-close" onclick="closeEditModal()">✕</button>
+        </div>
+        <div class="edit-modal-body">
+          <input type="hidden" id="edit-pid" />
+          <div class="form-group">
+            <label>S.NO (catalog order)</label>
+            <input type="number" id="edit-serial-no" min="1" step="1" placeholder="Catalog serial number" />
+          </div>
+          <div class="form-row-2">
+            <div class="form-group"><label>English Name</label><input type="text" id="edit-name-en"
+                placeholder="e.g. Rice" /></div>
+            <div class="form-group"><label>Tamil Name</label>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;"><input type="text" id="edit-name-ta"
+                  placeholder="e.g. அரிசி (type English → Tamil)" lang="ta" autocomplete="off" style="flex:1;" /><button
+                  type="button" id="edit-name-ta-translit-toggle" onclick="tamilTranslit.toggle('edit-name-ta')"
+                  style="white-space:nowrap;padding:4px 10px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:12px;">⌨️
+                  தமிழ் ON</button><button type="button" id="edit-name-ta-kbd-toggle"
+                  onclick="tamilKeyboard.toggle('edit-name-ta')"
+                  style="white-space:nowrap;padding:4px 10px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:12px;">⌨️
+                  Keyboard</button></div>
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group"><label>S.Rate / Retail (₹/kg)</label><input type="number" id="edit-srate"
+                placeholder="Selling rate" /></div>
+            <div class="form-group"><label>P.Rate / Cost (₹/kg)</label><input type="number" id="edit-prate"
+                placeholder="Purchase rate" /></div>
+          </div>
+          <div class="form-group">
+            <label>Wholesale Rate (₹/kg) — leave blank if not applicable</label>
+            <input type="number" id="edit-wholesale" placeholder="e.g. 75 (between P.Rate and S.Rate)" />
+          </div>
+          <div class="form-row-2" style="margin-top:4px;">
+            <div class="form-group"><label>Billing Price (₹/kg) — auto from mode</label><input type="number"
+                id="edit-price" placeholder="Auto-computed" /></div>
+            <div class="form-group"><label>Category</label>
+              <select id="edit-cat" style="width:100%;">
+                <option>Millets</option>
+                <option>Rice Varieties</option>
+                <option>Oats &amp; Cereals</option>
+                <option>Corn &amp; Maize</option>
+                <option>Pulses &amp; Legumes</option>
+                <option>Sorghum &amp; Grain</option>
+                <option>Groundnuts</option>
+                <option>Nuts &amp; Dry Fruits</option>
+                <option>Seeds</option>
+                <option>Spices &amp; Condiments</option>
+                <option>Ayurvedic Herbs &amp; Roots</option>
+                <option>Bird Feed Mixes</option>
+                <option>Pet &amp; Animal Feed</option>
+                <option>Minerals &amp; Grit</option>
+                <option>Honey &amp; Natural Sweeteners</option>
+                <option>Processed Products</option>
+                <option>Miscellaneous / Internal</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group"><label>Emoji</label><input type="text" id="edit-emoji" /></div>
+            <div class="form-group"><label>Search Tags</label><input type="text" id="edit-tags" /></div>
+          </div>
+          <div class="form-group stock-field-group">
+            <label>📦 Stock (kg) — leave blank to disable tracking</label>
+            <input type="number" id="edit-stock" min="0" step="0.01" placeholder="e.g. 50  (blank = not tracked)" />
+            <small class="stock-hint">⚠️ &lt; 5 kg = Low Stock Warning &nbsp;|&nbsp; 0 kg = Out of Stock</small>
+          </div>
+          <div class="form-group">
+            <label>Product Image</label>
+            <input type="file" id="edit-image" accept="image/*" onchange="previewEditImage(event)" />
+            <img id="edit-img-preview" src=""
+              style="display:none;max-width:100%;max-height:130px;border-radius:8px;margin-top:6px;object-fit:cover;" />
+          </div>
+          <!-- Nutrient Values (per 100g) -->
+          <div class="form-group" style="margin-top:8px;">
+            <label style="font-weight:700;color:#7C3AED;">🧬 Nutrient Values (per 100g)</label>
+            <small style="color:#888;display:block;margin-bottom:6px;">Leave blank to use auto-detected defaults</small>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group"><label>Protein (g)</label><input type="number" id="edit-nut-protein" step="0.1"
+                min="0" placeholder="e.g. 7.0" /></div>
+            <div class="form-group"><label>Absorbable Protein (g)</label><input type="number" id="edit-nut-abs-protein"
+                step="0.1" min="0" placeholder="e.g. 5.5" /></div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group"><label>Fat (g)</label><input type="number" id="edit-nut-fat" step="0.1" min="0"
+                placeholder="e.g. 1.5" /></div>
+            <div class="form-group"><label>Carbohydrates (g)</label><input type="number" id="edit-nut-carbs" step="0.1"
+                min="0" placeholder="e.g. 72" /></div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group"><label>Fiber (g)</label><input type="number" id="edit-nut-fiber" step="0.1" min="0"
+                placeholder="e.g. 11" /></div>
+            <div class="form-group"><label>Moisture (g)</label><input type="number" id="edit-nut-moisture" step="0.1"
+                min="0" placeholder="e.g. 12" /></div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group"><label>Ash (g)</label><input type="number" id="edit-nut-ash" step="0.1" min="0"
+                max="100" placeholder="e.g. 2.5" /></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button onclick="adminSaveProduct()" class="btn-admin-action" style="flex:2;grid-column:auto;">💾
+              Save</button>
+            <button onclick="adminDeleteProduct()"
+              style="flex:1;padding:9px;background:#FEE2E2;color:#DC2626;border:1.5px solid #FECACA;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:700;font-family:var(--font);">🗑
+              Delete</button>
+          </div>
+        </div>
+      </div>
+      <!-- Customer Bill History Modal -->
+      <div id="cust-hist-overlay" class="wt-overlay" onclick="closeCustHistory()"></div>
+      <div id="cust-hist-modal" class="wt-modal" style="width:1000px;max-width:98vw;">
+        <div class="wt-modal-header">
+          <h3 id="cust-hist-title">Bill History</h3>
+          <button class="wt-close" onclick="closeCustHistory()">✕</button>
+        </div>
+        <div id="cust-hist-body" style="padding:18px;max-height:85vh;overflow-y:auto;"></div>
+      </div>
+      <!-- Loyalty sub-panel -->
+      <div id="adm-loyalty-panel" style="display:none;">
+        <div class="admin-card" id="loyalty-settings-form">
+          <h3>⭐ Loyalty Customer Settings</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Reward repeat customers with stars and
+            automatic discounts.</p>
+          <div class="admin-form">
+            <div class="form-group" style="flex-direction:row;align-items:center;gap:12px;">
+              <label style="margin:0;">Enable Loyalty System</label>
+              <input type="checkbox" id="ls-enabled" checked style="width:18px;height:18px;accent-color:var(--blue);" />
+            </div>
+            <div class="form-group">
+              <label>Minimum Purchase for ⭐ Star (₹)</label>
+              <input type="number" id="ls-min-purchase" value="500" min="0" step="50" />
+              <small style="color:#888;">Customer earns 1 star when bill ≥ this amount</small>
+            </div>
+            <div class="form-group">
+              <label>Stars Required for 🎁 Reward</label>
+              <input type="number" id="ls-stars-reward" value="10" min="1" step="1" />
+              <small style="color:#888;">After collecting this many stars, reward is unlocked</small>
+            </div>
+            <div class="form-group">
+              <label>Reward Discount Amount (₹)</label>
+              <input type="number" id="ls-discount-amt" value="100" min="0" step="10" />
+              <small style="color:#888;">Discount applied to the qualifying bill</small>
+            </div>
+            <button onclick="saveLoyaltySettings()" class="btn-admin-action">💾 Save Loyalty Settings</button>
+          </div>
+          <div
+            style="margin-top:18px;padding:14px;background:var(--blue-xlt);border-radius:8px;border:1px solid var(--blue-lt);">
+            <strong style="color:var(--blue-dk);">How it works:</strong>
+            <ol style="font-size:13px;color:var(--text-2);margin:8px 0 0 16px;line-height:1.8;">
+              <li>Customer enters phone number → system loads their stars</li>
+              <li>When bill total ≥ min purchase → customer earns 1 ⭐</li>
+              <li>After collecting required stars → 🎁 reward appears in billing panel</li>
+              <li>Cashier clicks <strong>Apply</strong> → discount deducted automatically on Save</li>
+              <li>Stars reset by the required amount after reward is applied</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+      <!-- ══ PACKAGES MANAGEMENT PANEL ══ -->
+      <div id="adm-packages-panel" style="display:none;">
+
+        <!-- Package List -->
+        <div class="admin-card" id="pkg-admin-list-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <h3 style="margin:0;">📦 All Packages <small style="font-weight:500;color:var(--muted);">(click to
+                edit)</small></h3>
+            <button onclick="openPackageForm(null)" class="btn-admin-action"
+              style="grid-column:auto;padding:8px 18px;">➕ New Package</button>
+          </div>
+          <div id="pkg-admin-list"></div>
+        </div>
+
+        <!-- Package Add/Edit Form -->
+        <div class="admin-card" id="pkg-admin-form-card" style="display:none;margin-top:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <h3 id="pkg-form-title" style="margin:0;">➕ New Package</h3>
+            <button onclick="closePackageForm()"
+              style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">✕
+              Cancel</button>
+          </div>
+
+          <input type="hidden" id="pkg-edit-id" value="" />
+
+          <!-- Package header fields -->
+          <div class="admin-form" style="margin-bottom:0;">
+            <div class="form-row-2">
+              <div class="form-group">
+                <label>Package Name (English)</label>
+                <input type="text" id="pkg-name-en" placeholder="e.g. Poultry Mix A" />
+              </div>
+              <div class="form-group">
+                <label>Package Name (Tamil)</label>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input type="text" id="pkg-name-ta" placeholder="e.g. கோழி கலவை A" lang="ta" autocomplete="off"
+                    style="flex:1;" onfocus="_onPkgTamilFocus('pkg-name-ta')" />
+                  <button type="button" id="pkg-name-ta-translit-toggle" onclick="togglePkgTamilTranslit()"
+                    style="white-space:nowrap;padding:4px 10px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:12px;">⌨️
+                    தமிழ் ON</button>
+                  <button type="button" id="pkg-name-ta-kbd-toggle" onclick="togglePkgTamilKeyboard()"
+                    style="white-space:nowrap;padding:4px 10px;border-radius:6px;border:1px solid #ccc;cursor:pointer;font-size:12px;">⌨️
+                    Keyboard</button>
+                </div>
+              </div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group">
+                <label>Price per kg (₹)</label>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <input type="number" id="pkg-price" min="0" placeholder="Auto-calculated" readonly
+                    oninput="_recalcPkgPrice()" style="background:var(--bg);color:var(--muted);" />
+                  <label
+                    style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text);">
+                    <input type="checkbox" id="pkg-manual-price-toggle" onchange="toggleManualPrice(this.checked)"
+                      style="width:14px;height:14px;" />
+                    ✏️ Manual Price Override
+                  </label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Emoji</label>
+                <input type="text" id="pkg-emoji" value="📦" maxlength="4" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Product Mode</label>
+              <select id="pkg-product-mode" class="pkg-mode-select">
+                <option value="normal">Normal</option>
+                <option value="oil">Oil</option>
+              </select>
+            </div>
+            <!-- Package image upload -->
+            <div class="form-group" style="margin-top:10px;">
+              <label style="font-size:12px;font-weight:700;">📷 Package Image <span
+                  style="color:var(--muted);font-weight:400;">(optional)</span></label>
+              <div style="display:flex;align-items:center;gap:12px;margin-top:6px;">
+                <label
+                  style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:var(--blue-xlt);color:var(--blue);border:1.5px solid var(--blue-lt);border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;">
+                  📁 Choose Image
+                  <input type="file" id="pkg-image-file" accept="image/*" style="display:none;"
+                    onchange="previewPackageImage(this)" />
+                </label>
+                <span id="pkg-image-filename" style="font-size:11px;color:var(--muted);">No file chosen</span>
+                <button type="button" id="pkg-image-clear" onclick="clearPackageImage()"
+                  style="display:none;padding:5px 10px;background:#fee2e2;color:#dc2626;border:1.5px solid #fecaca;border-radius:var(--radius-sm);font-size:11px;cursor:pointer;">✕
+                  Remove</button>
+              </div>
+              <div id="pkg-image-preview" style="display:none;margin-top:10px;">
+                <img id="pkg-image-preview-img" src="" alt="Package preview"
+                  style="width:100px;height:100px;object-fit:cover;border-radius:10px;border:2px solid var(--border);" />
+              </div>
+            </div>
+            <!-- Smart price display -->
+            <div id="pkg-price-summary"
+              style="display:none;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-top:8px;">
+              <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:12px;">
+                <span>🧾 Ingredient Cost: <strong id="pkg-cost-display"
+                    style="color:var(--muted);">₹0/kg</strong></span>
+                <span>💰 Selling Price: <strong id="pkg-sell-display" style="color:var(--blue);">₹0/kg</strong></span>
+                <span id="pkg-profit-wrap">📈 Profit: <strong id="pkg-profit-display"
+                    style="color:#16a34a;">₹0/kg</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ingredients table -->
+          <div style="margin-top:18px;">
+            <div
+              style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+              <label style="font-size:13px;font-weight:800;color:var(--text);">🌾 Ingredients</label>
+              <div style="display:flex;gap:8px;">
+                <button onclick="openProductPickerModal()"
+                  style="padding:6px 14px;background:#f0fdf4;color:#16a34a;border:1.5px solid #bbf7d0;border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">🔍
+                  Add From Products</button>
+                <button onclick="addIngredientRow()"
+                  style="padding:6px 14px;background:var(--blue-xlt);color:var(--blue);border:1.5px solid var(--blue-lt);border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);">+
+                  Add Ingredient</button>
+              </div>
+            </div>
+
+            <!-- Ingredients header -->
+            <div
+              style="display:grid;grid-template-columns:2fr 2fr 0.7fr 0.7fr auto;gap:10px;padding:6px 8px;background:var(--bg);border-radius:6px;margin-bottom:6px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">
+              <span>Name (EN)</span><span>Name (Tamil)</span><span>Ratio kg</span><span>₹/kg</span><span></span>
+            </div>
+
+            <div id="pkg-ingredients-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+
+            <!-- Nutrient section toggle -->
+            <div style="margin-top:14px;">
+              <button onclick="toggleNutrientSection()" id="pkg-nutr-toggle-btn"
+                style="width:100%;padding:9px;background:var(--purple-lt);color:var(--purple);border:1.5px solid #DDD6FE;border-radius:var(--radius-sm);font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);text-align:left;">
+                🧬 Show Nutrient Values ▼
+              </button>
+              <div id="pkg-nutr-section" style="display:none;margin-top:10px;">
+
+                <!-- Mode switcher -->
+                <div
+                  style="display:flex;gap:0;margin-bottom:12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;">
+                  <button id="nutr-mode-overall" onclick="setNutrMode('overall')"
+                    style="flex:1;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);border:none;background:#1d4ed8;color:#fff;transition:all .15s;">
+                    📊 Overall (enter once)
+                  </button>
+                  <button id="nutr-mode-per-ing" onclick="setNutrMode('per-ing')"
+                    style="flex:1;padding:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);border:none;background:var(--bg);color:var(--muted);transition:all .15s;">
+                    🌿 Per Ingredient
+                  </button>
+                </div>
+
+                <!-- Overall nutrition panel -->
+                <div id="pkg-nutr-overall-panel">
+                  <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Enter the final combined nutrition
+                    per 100g for the whole package. This overrides per-ingredient calculations.</p>
+                  <div
+                    style="background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;">
+                    <div style="font-size:12px;font-weight:800;color:var(--text);margin-bottom:10px;">📊 Overall Package
+                      Nutrition (per 100g)</div>
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;" id="pkg-nutr-overall-grid">
+                      <!-- filled by JS -->
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Per-ingredient panel -->
+                <div id="pkg-nutr-per-ing-panel" style="display:none;">
+                  <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Enter nutrient values per 100g for
+                    each ingredient. Used for nutrition label on receipts.</p>
+                  <div id="pkg-nutr-rows-admin"></div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Save / Delete buttons -->
+          <div style="display:flex;gap:10px;margin-top:18px;">
+            <button onclick="savePackage()" class="btn-admin-action" style="flex:2;grid-column:auto;padding:11px;">💾
+              Save Package</button>
+            <button id="pkg-delete-btn" onclick="deletePackage()"
+              style="display:none;flex:1;padding:11px;background:var(--red-lt);color:var(--red);border:1.5px solid #FECACA;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:700;font-family:var(--font);">🗑
+              Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Daily Report Panel -->
+      <div id="adm-daily-panel" style="display:none;">
+        <div class="admin-card">
+          <h3>📅 Daily Revenue Report</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:14px;">Select a date to view total bills and total
+            revenue for that day.</p>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <input type="date" id="daily-date-input"
+              style="padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;outline:none;font-family:var(--font);color:var(--text);background:#fff;cursor:pointer;"
+              onchange="loadDailyReport()" />
+            <button onclick="loadDailyReport()" class="btn-admin-action" style="grid-column:auto;padding:9px 20px;">🔍
+              View Report</button>
+            <button onclick="setTodayAndLoad()"
+              style="padding:9px 16px;background:var(--green-lt);color:var(--green);border:1.5px solid #A7F3D0;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-weight:700;font-family:var(--font);">📅
+              Today</button>
+          </div>
+          <div id="daily-report-result" style="margin-top:20px;"></div>
+        </div>
+      </div>
+      <!-- Shortcuts Configuration Panel (v-patch) -->
+      <div id="adm-shortcuts-panel" style="display:none;padding:16px 20px;"></div>
+      <div id="adm-printer-panel" style="display:none;padding:16px 20px;"></div>
+      <div id="adm-credit-panel" style="display:none;padding:16px 20px;"></div>
+
+    </main><!-- end .admin-main -->
+  </div><!-- end #section-admin -->
+
+  <!-- ══════════════ ANALYTICS SECTION ══════════════ -->
+  <div id="section-analytics" style="display:none;" class="section-page">
+    <div class="analytics-header-row">
+      <h2 class="section-title" style="margin-bottom:0;">📊 Analytics — DHANA DHANYA KADAI</h2>
+      <div class="analytics-header-actions">
+        <button class="analytics-export-btn" onclick="adminExportBills()" title="Export bills to Excel">
+          📥 Export Bills
+        </button>
+        <button class="analytics-clear-btn" onclick="showClearAnalyticsModal()" title="Clear analytics data">
+          🗑️ Clear Analytics
+        </button>
+      </div>
+    </div>
+
+    <!-- Analytics cutoff notice banner (shown when cutoff is active) -->
+    <div id="analytics-cutoff-banner" class="analytics-cutoff-banner" style="display:none;">
+      <span>⚠️ Analytics view was reset — showing data since last clear. Bills are preserved.</span>
+      <button onclick="restoreFullAnalytics()" class="analytics-restore-btn">Restore Full View</button>
+    </div>
+
+    <div class="stat-grid" style="margin-top:16px;">
+      <div class="stat-card sc-green">
+        <div class="stat-icon">💰</div>
+        <div class="stat-val" id="stat-today-rev">—</div>
+        <div class="stat-label">Today's Revenue</div>
+      </div>
+      <div class="stat-card sc-blue">
+        <div class="stat-icon">🧾</div>
+        <div class="stat-val" id="stat-today-bills">—</div>
+        <div class="stat-label">Bills Today</div>
+      </div>
+      <div class="stat-card sc-yellow">
+        <div class="stat-icon">📈</div>
+        <div class="stat-val" id="stat-total-rev">—</div>
+        <div class="stat-label">Total Revenue</div>
+      </div>
+      <div class="stat-card sc-orange">
+        <div class="stat-icon">📋</div>
+        <div class="stat-val" id="stat-total-bills">—</div>
+        <div class="stat-label">Total Bills</div>
+      </div>
+      <div class="stat-card sc-purple" style="grid-column:span 2;">
+        <div class="stat-icon">🏆</div>
+        <div class="stat-val" id="stat-best" style="font-size:16px;">—</div>
+        <div class="stat-label">Most Sold Product</div>
+      </div>
+    </div>
+    <div class="analytics-row">
+      <div class="admin-card analytics-half">
+        <h3>🏆 Top Products by Revenue</h3>
+        <div id="breakdown-list" style="margin-top:10px;"></div>
+      </div>
+      <div class="admin-card analytics-half">
+        <h3>🕐 Recent Bills</h3>
+        <div id="recent-bills-list" style="margin-top:10px;max-height:400px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ CLEAR ANALYTICS MODAL ══════════════ -->
+  <div id="clear-analytics-overlay" class="ca-overlay" onclick="closeClearAnalyticsModal()"></div>
+  <div id="clear-analytics-modal" class="ca-modal" role="dialog" aria-modal="true" aria-labelledby="ca-modal-title">
+    <div class="ca-modal-header">
+      <span class="ca-modal-icon">🗑️</span>
+      <div>
+        <h3 id="ca-modal-title" class="ca-modal-title">Clear Analytics Data?</h3>
+        <p class="ca-modal-sub">Choose what to reset</p>
+      </div>
+    </div>
+
+    <div class="ca-warning-box">
+      <strong>⚠️ This will reset:</strong>
+      <ul>
+        <li>Analytics summaries &amp; revenue stats</li>
+        <li>Top products rankings</li>
+        <li>Bill count totals shown on dashboard</li>
+        <li>All charts and aggregated data</li>
+      </ul>
+    </div>
+
+    <!-- Mode selector -->
+    <div class="ca-mode-group">
+      <label class="ca-mode-label">Reset scope:</label>
+      <div class="ca-mode-btns">
+        <button id="ca-mode-today" class="ca-mode-btn ca-mode-active" onclick="setCaMode('today')">
+          📅 Today Only
+        </button>
+        <button id="ca-mode-all" class="ca-mode-btn" onclick="setCaMode('all')">
+          🗂️ All Time
+        </button>
+      </div>
+    </div>
+
+    <!-- Optional: also delete bill rows -->
+    <div class="ca-checkbox-row">
+      <label class="ca-checkbox-label">
+        <input type="checkbox" id="ca-clear-bills-chk">
+        <span class="ca-checkbox-text">
+          Also permanently delete bill records
+          <span class="ca-badge-danger">IRREVERSIBLE</span>
+        </span>
+      </label>
+      <p class="ca-checkbox-hint" id="ca-bills-hint">
+        When unchecked: bills are preserved, only the analytics view resets.
+      </p>
+    </div>
+
+    <div class="ca-modal-footer">
+      <button class="ca-btn-cancel" onclick="closeClearAnalyticsModal()">Cancel</button>
+      <button class="ca-btn-confirm" id="ca-confirm-btn" onclick="executeClearAnalytics()">
+        🗑️ Clear Data
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════ WEIGHT MODAL ══════════════ -->
+  <div id="wt-overlay" class="wt-overlay" onclick="closeWeightModal()"></div>
+  <div id="wt-modal" class="wt-modal" tabindex="-1" role="dialog" aria-modal="true">
+    <div class="wt-modal-header">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span id="wt-emoji" style="font-size:28px;">🌿</span>
+        <div>
+          <div id="wt-name" style="font-weight:700;font-size:16px;"></div>
+          <div id="wt-price" style="color:var(--blue);font-size:13px;font-weight:600;"></div>
+        </div>
+      </div>
+      <button class="wt-close" onclick="closeWeightModal()">✕</button>
+    </div>
+    <div style="padding:18px;display:flex;flex-direction:column;gap:12px;">
+      <div class="temp-price-box">
+        ⚠️ <strong>Temp Price Override</strong> – affects this bill only
+        <input type="number" id="wt-temp-price" placeholder="Leave blank to use product price" />
+      </div>
+      <div style="display:flex;gap:8px;">
+        <input type="number" id="wt-input" placeholder="Weight"
+          style="flex:1;padding:11px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:18px;outline:none;font-family:var(--font);transition:border-color .18s;"
+          oninput="updatePreview()" />
+        <select id="wt-unit"
+          style="padding:11px 14px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:14px;outline:none;background:#fff;font-family:var(--font);"
+          onchange="handleUnitChange()">
+          <option value="g">g</option>
+          <option value="kg" selected>kg</option>
+        </select>
+      </div>
+      <div class="quick-btns">
+        <button class="qbtn" onclick="setQuick(100,this)">100g</button>
+        <button class="qbtn" onclick="setQuick(250,this)">250g</button>
+        <button class="qbtn" onclick="setQuick(500,this)">500g</button>
+        <button class="qbtn" onclick="setQuick(1000,this)">1 kg</button>
+      </div>
+      <div id="wt-preview" style="font-size:14px;color:var(--muted);min-height:22px;text-align:center;font-weight:600;">
+      </div>
+      <button onclick="confirmAdd()" class="btn-confirm-add">✓ Add to Bill</button>
+    </div>
+  </div>
+
+  <!-- Package Modal -->
+  <div id="pkg-overlay" class="wt-overlay" onclick="closePackageModal()"></div>
+  <div id="pkg-modal" class="wt-modal" style="width:480px;max-height:92vh;overflow-y:auto;" tabindex="-1" role="dialog"
+    aria-modal="true">
+    <div class="wt-modal-header">
+      <h3 id="pkg-modal-title">Package</h3>
+      <button class="wt-close" onclick="closePackageModal()">✕</button>
+    </div>
+    <div style="padding:16px;display:flex;flex-direction:column;gap:12px;">
+      <!-- Quantity selector -->
+      <div style="display:flex;align-items:center;gap:12px;justify-content:center;">
+        <label style="font-size:14px;font-weight:700;color:var(--text);">📦 Quantity:</label>
+        <input type="number" id="pkg-user-qty" min="0.5" step="0.5" value="1" oninput="onPkgUserQty(this.value)"
+          onkeydown="pkgQtyKeydown(event)"
+          style="width:80px;padding:8px 10px;border:2px solid #7c3aed;border-radius:8px;font-size:16px;font-weight:700;text-align:center;" />
+        <span style="font-size:14px;font-weight:600;color:var(--muted);">kg</span>
+      </div>
+      <!-- Quick qty buttons -->
+      <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+        <button onclick="setPkgQty(0.5)" class="qbtn"
+          style="padding:6px 14px;border:1.5px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-weight:600;">0.5
+          kg</button>
+        <button onclick="setPkgQty(1)" class="qbtn"
+          style="padding:6px 14px;border:1.5px solid #7c3aed;border-radius:6px;background:#ede9fe;cursor:pointer;font-weight:600;color:#7c3aed;">1
+          kg</button>
+        <button onclick="setPkgQty(2)" class="qbtn"
+          style="padding:6px 14px;border:1.5px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-weight:600;">2
+          kg</button>
+        <button onclick="setPkgQty(5)" class="qbtn"
+          style="padding:6px 14px;border:1.5px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-weight:600;">5
+          kg</button>
+        <button onclick="setPkgQty(10)" class="qbtn"
+          style="padding:6px 14px;border:1.5px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-weight:600;">10
+          kg</button>
+        <button onclick="setPkgQty(25)" class="qbtn"
+          style="padding:6px 14px;border:1.5px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-weight:600;">25
+          kg</button>
+      </div>
+      <!-- Price + weight summary -->
+      <div id="pkg-preview"
+        style="text-align:center;font-size:14px;color:var(--muted);padding:10px;background:var(--purple-lt);border-radius:8px;border:1px solid #DDD6FE;">
+      </div>
+      <!-- Ingredient list (read-only, checkboxes to include/exclude) -->
+      <div>
+        <label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:8px;">🧾 Ingredients
+          (auto-scaled)</label>
+        <div id="pkg-items-list"
+          style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px;"></div>
+      </div>
+      <!-- Live nutrition preview panel — updated on every qty change -->
+      <div id="pkg-nutr-panel"
+        style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:10px 14px;">
+        <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:6px;letter-spacing:.5px;">🌿 COMBINED
+          NUTRITION (per 100g weighted avg)</div>
+        <div id="pkg-nutr-rows" style="font-size:12px;font-family:monospace;color:#1a1a1a;line-height:1.8;"></div>
+        <div style="font-size:10px;color:#666;margin-top:4px;">Values update as you change ingredient weights</div>
+      </div>
+      <button onclick="confirmAddPackage()" class="btn-confirm-add">📦 Add Package to Bill</button>
+    </div>
+  </div>
+
+  <!-- Bill-detail modal (analytics) -->
+  <!-- Product Picker Modal -->
+  <div id="prod-picker-overlay" class="wt-overlay" onclick="closeProductPickerModal()"></div>
+  <div id="prod-picker-modal" class="wt-modal" style="width:520px;max-height:85vh;display:flex;flex-direction:column;"
+    tabindex="-1" role="dialog" aria-modal="true">
+    <div class="wt-modal-header" style="flex-shrink:0;">
+      <h3>🔍 Add Ingredient from Products</h3>
+      <button class="wt-close" onclick="closeProductPickerModal()">✕</button>
+    </div>
+    <div style="padding:12px 18px;flex-shrink:0;">
+      <input type="text" id="prod-picker-search" placeholder="Search by name, Tamil name, code…"
+        oninput="renderProductPicker()"
+        style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;outline:none;font-family:var(--font);box-sizing:border-box;" />
+    </div>
+    <div id="prod-picker-list"
+      style="overflow-y:auto;flex:1;padding:0 18px 14px;display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+
+  <div id="bill-detail-overlay" class="wt-overlay" onclick="closeBillDetail()"></div>
+  <div id="bill-detail-modal" class="wt-modal" style="width:460px;" tabindex="-1" role="dialog" aria-modal="true">
+    <div class="wt-modal-header">
+      <h3 id="bill-detail-title">Bill Details</h3>
+      <button class="wt-close" onclick="closeBillDetail()">✕</button>
+    </div>
+    <div id="bill-detail-body" style="padding:14px;max-height:70vh;overflow-y:auto;"></div>
+    <div style="padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;">
+      <button type="button" class="btn-admin-action"
+        onclick="openAdminBillPreview(window._detailBillId, 'en')">Preview</button>
+      <button type="button" class="btn-admin-action" style="background:#166534;"
+        onclick="openAdminBillPreview(window._detailBillId, 'ta')">தமிழ் Preview</button>
+      <button type="button" id="bill-detail-reprint-btn" class="btn-admin-action" style="background:#059669;"
+        onclick="reprintBillFromDetail()">🖨️ Reprint</button>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast"></div>
+
+  <!-- PRINT AREA -->
+  <div id="print-area"></div>
+
+  <script src="tamil-transliterate.js"></script>
+  <script src="tamil-keyboard.js"></script>
+  <script src="qz-tray-print.js"></script>
+  <script src="script.js?v=20"></script>
+
+  <!-- ══ LOYALTY STARS PATCH — clean single-section renderer ══
+     Overrides whatever script.js renders into #loyalty-panel.
+     Reads from the bill API response object (currentBill / bill).
+     Safe defaults prevent crashes when variables are missing.     -->
+  <style>
+    .loyalty-center {
+      text-align: center;
+      font-weight: bold;
+      margin: 6px 0;
+      line-height: 1.4;
+    }
+  </style>
+
+  <script>
+    /* ─── renderLoyaltyPanel(bill) ───────────────────────────────────────
+       Call this after every customer lookup or bill save.
+       Pass the `bill` object returned by /bill or /api/customer.
+       All fields have safe defaults — will never crash on missing data.
+    ──────────────────────────────────────────────────────────────────── */
+    function renderLoyaltyPanel(bill) {
+      const panel = document.getElementById('loyalty-panel');
+      if (!panel) return;
+
+      // ── Always show loyalty panel — independent of loyalty_enabled toggle ───
+      panel.style.display = 'block';
+    }
+
+    /* ─── Patch: intercept script.js loyalty-panel writes ───────────────
+       script.js may call innerHTML on #loyalty-panel directly.
+       We watch for that and re-render our clean version on top.        */
+    (function patchLoyaltyPanel() {
+      const _orig = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+      if (!_orig) return;
+      Object.defineProperty(Element.prototype, 'innerHTML', {
+        set: function (val) {
+          _orig.set.call(this, val);
+          // If script.js just wrote into #loyalty-panel, re-render clean version
+          if (this.id === 'loyalty-panel' && window._lastLoyaltyBill) {
+            setTimeout(() => renderLoyaltyPanel(window._lastLoyaltyBill), 0);
+          }
+        },
+        get: _orig.get,
+        configurable: true,
+      });
+    })();
+
+    /* ─── Hook: capture bill data whenever customer lookup or bill save runs
+       Intercepts fetch responses from /customer and /bill endpoints.
+       Always stores the freshest bill object so renderLoyaltyPanel has
+       the correct stars, stars_required, loyalty_enabled, and discount.  */
+    (function hookFetch() {
+      const _fetch = window.fetch;
+      window.fetch = async function (...args) {
+        const res = await _fetch(...args);
+        try {
+          const url = typeof args[0] === 'string' ? args[0] : (args[0].url || '');
+          if (url.includes('/customer/') || url.includes('/bill')) {
+            const clone = res.clone();
+            clone.json().then(data => {
+              // Customer lookup — /customer/:phone
+              if (data && data.found !== undefined) {
+                window._lastLoyaltyBill = data;
+                renderLoyaltyPanel(data);
+              }
+              // Bill save — /bill POST response (always prefer data.bill)
+              if (data && data.bill) {
+                window._lastLoyaltyBill = data.bill;
+                renderLoyaltyPanel(data.bill);
+              }
+            }).catch(() => { });
+          }
+        } catch (e) { }
+        return res;
+      };
+    })();
+  </script>
+
+  <!-- Price Mode Confirmation Modal -->
+  <div id="price-mode-overlay" class="wt-overlay" onclick="cancelPriceModeChange()"></div>
+  <div id="price-mode-modal" class="wt-modal" style="width:360px;">
+    <div class="wt-modal-header">
+      <h3>⚠️ Change Price Mode</h3>
+      <button class="wt-close" onclick="cancelPriceModeChange()">✕</button>
+    </div>
+    <div style="padding:20px;text-align:center;">
+      <p style="font-size:14px;color:var(--text);margin-bottom:16px;">Are you sure you want to change the price mode to
+        <strong id="price-mode-target"></strong>?</p>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:20px;">This will update all product prices in the
+        billing view.</p>
+      <div style="display:flex;gap:10px;">
+        <button onclick="cancelPriceModeChange()"
+          style="flex:1;padding:10px;background:var(--bg);border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);color:var(--text);">Cancel</button>
+        <button onclick="confirmPriceModeChange()"
+          style="flex:1;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);">✓
+          Confirm</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Password Change Modal -->
+  <div id="pw-change-modal"
+    style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;">
+    <div
+      style="background:#fff;border-radius:16px;padding:32px;max-width:380px;width:90%;box-shadow:0 20px 40px rgba(0,0,0,.3);">
+      <h3 style="font-size:16px;font-weight:800;margin-bottom:16px;">🔐 Change App Password</h3>
+      <input type="password" id="old-pw" placeholder="Current password"
+        style="width:100%;padding:10px 14px;border:2px solid #E2E8F0;border-radius:10px;font-size:13px;margin-bottom:10px;outline:none;">
+      <input type="password" id="new-pw" placeholder="New password"
+        style="width:100%;padding:10px 14px;border:2px solid #E2E8F0;border-radius:10px;font-size:13px;margin-bottom:10px;outline:none;">
+      <input type="password" id="confirm-pw" placeholder="Confirm new password"
+        style="width:100%;padding:10px 14px;border:2px solid #E2E8F0;border-radius:10px;font-size:13px;margin-bottom:16px;outline:none;">
+      <div id="pw-error" style="color:#DC2626;font-size:12px;margin-bottom:10px;display:none;"></div>
+      <div id="pw-success" style="color:#059669;font-size:12px;margin-bottom:10px;display:none;"></div>
+      <div style="display:flex;gap:10px;">
+        <button onclick="closePwModal()"
+          style="flex:1;padding:10px;border:2px solid #E2E8F0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;">Cancel</button>
+        <button onclick="changePassword()"
+          style="flex:1;padding:10px;background:#2563EB;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">Update</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    function openPwModal() {
+      const m = document.getElementById('pw-change-modal');
+      m.style.display = 'flex';
+      document.getElementById('old-pw').value = '';
+      document.getElementById('new-pw').value = '';
+      document.getElementById('confirm-pw').value = '';
+      document.getElementById('pw-error').style.display = 'none';
+      document.getElementById('pw-success').style.display = 'none';
+    }
+    function closePwModal() { document.getElementById('pw-change-modal').style.display = 'none'; }
+    async function changePassword() {
+      const oldPw = document.getElementById('old-pw').value;
+      const newPw = document.getElementById('new-pw').value;
+      const confirmPw = document.getElementById('confirm-pw').value;
+      const errEl = document.getElementById('pw-error');
+      const sucEl = document.getElementById('pw-success');
+      errEl.style.display = 'none'; sucEl.style.display = 'none';
+      if (newPw !== confirmPw) { errEl.textContent = 'Passwords do not match'; errEl.style.display = 'block'; return; }
+      if (newPw.length < 1) { errEl.textContent = 'Password cannot be empty'; errEl.style.display = 'block'; return; }
+      const r = await fetch('/update-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ old_password: oldPw, new_password: newPw }) });
+      const d = await r.json();
+      if (r.ok) { sucEl.textContent = 'Password updated successfully!'; sucEl.style.display = 'block'; setTimeout(closePwModal, 1500); }
+      else { errEl.textContent = d.error || 'Failed to update'; errEl.style.display = 'block'; }
+    }
+  </script>
+
+
+  <!-- ENTER = NEXT FIELD NAVIGATION (generic fallback — skips if element handler already ran) -->
+  <script>
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter") return;
+      if (e.defaultPrevented) return;          // element-specific handler already handled it
+      const active = document.activeElement;
+      if (!active || active === document.body) return;
+      if (active.tagName === "TEXTAREA") return;
+      if (active.tagName === "BUTTON") return;
+      if (active.tagName === "A") return;
+      if (active.classList.contains("no-enter-nav")) return;
+
+      // Scope to closest visible section/panel, or fallback to the visible page section
+      const container = active.closest(".admin-card, .section-page, .modal-content, form") || document;
+      const fields = Array.from(
+        container.querySelectorAll("input:not(.no-enter-nav), select:not(.no-enter-nav), textarea:not(.no-enter-nav)")
+      ).filter(function (el) {
+        return !el.disabled && !el.readOnly && el.offsetParent !== null && el.type !== "hidden" && el.type !== "file";
+      });
+      var index = fields.indexOf(active);
+      if (index > -1) {
+        e.preventDefault();
+        var next = fields[index + 1];
+        if (next) {
+          next.focus();
+          if (next.select) next.select();
+        }
+      }
+    });
+  </script>
+
+  <!-- AUTO FOCUS FIRST INPUT FIELD ON PAGE LOAD -->
+  <script>
+    function focusFirstInput() {
+      const inputs = Array.from(document.querySelectorAll("input, select, textarea"))
+        .filter(el =>
+          !el.disabled &&
+          el.offsetParent !== null &&
+          !el.classList.contains("no-auto-focus")
+        );
+      if (inputs.length > 0) {
+        inputs[0].focus();
+        if (inputs[0].select) inputs[0].select();
+      }
+    }
+
+    function smartFocus() {
+      const priority = document.querySelector("#productSearch");
+      if (priority) {
+        priority.focus();
+        return;
+      }
+      focusFirstInput();
+    }
+
+    document.addEventListener("DOMContentLoaded", smartFocus);
+    window.addEventListener("load", smartFocus);
+
+    // For dynamically loaded content / SPA navigation
+    const _origPushState = history.pushState;
+    history.pushState = function () {
+      _origPushState.apply(this, arguments);
+      setTimeout(smartFocus, 100);
+    };
+    window.addEventListener("popstate", function () {
+      setTimeout(smartFocus, 100);
+    });
+  </script>
+
+  <!-- ══════════════ COLLECT PAYMENT MODAL ══════════════ -->
+  <div id="cp-overlay" onclick="closeCollectPayment()"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:3000;"></div>
+  <div id="cp-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+         background:#fff;border-radius:16px;padding:28px 28px 24px;width:360px;max-width:95vw;
+         z-index:3001;box-shadow:0 20px 60px rgba(0,0,0,0.25);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <h3 style="margin:0;font-size:16px;color:#1e293b;">💵 Collect Payment</h3>
+      <button onclick="closeCollectPayment()"
+        style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;line-height:1;">✕</button>
+    </div>
+    <div style="background:#F1F5F9;border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+      <div style="font-size:12px;color:#64748B;margin-bottom:2px;">Customer</div>
+      <div style="font-weight:700;font-size:14px;" id="cp-customer-name">—</div>
+      <div style="font-size:12px;color:#64748B;margin-top:6px;">Outstanding Due</div>
+      <div style="font-weight:800;font-size:18px;color:#DC2626;" id="cp-due-amount">₹0.00</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Amount Receiving
+        (₹)</label>
+      <input type="number" id="cp-amount-input" min="0.01" step="0.01" style="width:100%;padding:10px 12px;border:2px solid #7C3AED;border-radius:8px;
+             font-size:16px;font-weight:700;color:#1e293b;outline:none;box-sizing:border-box;" />
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Payment
+        Method</label>
+      <select id="cp-method-select"
+        style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;background:#fff;">
+        <option value="cash">💵 Cash</option>
+        <option value="upi">📱 UPI</option>
+        <option value="bank">🏦 Bank Transfer</option>
+      </select>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px;">Note
+        (optional)</label>
+      <input type="text" id="cp-note-input" placeholder="e.g. Received via PhonePe"
+        style="width:100%;padding:9px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;" />
+    </div>
+    <div id="cp-error-msg" style="display:none;background:#FEE2E2;color:#991B1B;border-radius:6px;padding:8px 12px;
+           font-size:12px;font-weight:600;margin-bottom:10px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="closeCollectPayment()" style="flex:1;padding:11px;border:1.5px solid #ddd;border-radius:8px;
+             background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:#666;">Cancel</button>
+      <button onclick="submitCollectPayment()" style="flex:2;padding:11px;border:none;border-radius:8px;background:#DC2626;
+             color:#fff;cursor:pointer;font-size:13px;font-weight:700;">
+        ✅ Record Payment</button>
+    </div>
+  </div>
+</body>
+
+</html>

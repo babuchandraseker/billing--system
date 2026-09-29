@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="{% if language == 'tamil' %}ta{% else %}en{% endif %}">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thermal Preview — Bill #{{ bill.id }}</title>
+<!-- Preload Tamil fonts for correct preview and print rendering -->
+<link rel="preload" href="/static/fonts/NotoSansTamil-Regular.ttf" as="font" type="font/truetype" crossorigin="anonymous">
+<link rel="preload" href="/static/fonts/NotoSansTamil-Bold.ttf" as="font" type="font/truetype" crossorigin="anonymous">
+<link rel="stylesheet" href="/static/thermal_receipt.css">
+<style>
+  /* Inline @font-face for preview page — ensures font available before render */
+  @font-face {
+    font-family: "Noto Sans Tamil";
+    src: url('/static/fonts/NotoSansTamil-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-display: block;
+  }
+  @font-face {
+    font-family: "Noto Sans Tamil";
+    src: url('/static/fonts/NotoSansTamil-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-display: block;
+  }
+</style>
+</head>
+<body class="preview-thermal-page">
+
+  <div class="preview-toolbar no-print">
+    <h1>Thermal Preview</h1>
+    {% if language == 'tamil' %}
+      <span>80mm — Bill #{{ bill.id }}</span>
+    {% else %}
+      <span>48 cols — Bill #{{ bill.id }}</span>
+    {% endif %}
+    <div class="btn-row">
+      <button type="button" class="{% if language != 'tamil' %}active{% endif %}" onclick="setLang('en')">ENGLISH</button>
+      <button type="button" class="{% if language == 'tamil' %}active{% endif %}" onclick="setLang('ta')">தமிழ்</button>
+      <button type="button" onclick="window.print()">Print / PDF</button>
+    </div>
+  </div>
+
+  <div class="preview-page-body">
+    <div class="thermal-paper-shadow">
+      {% if language == 'tamil' %}
+        {#
+          Tamil: HTML-table layout (receipt_html) for correct proportional glyph rendering.
+          Tamil Unicode glyphs are NOT monospace — a <pre> block cannot align them correctly.
+          receipt_html uses CSS flexbox/table so Tamil text renders at actual glyph widths.
+          INDEPENDENT from English layout — English changes do not affect this block.
+        #}
+        <div class="thermal-bill ta thermal-tamil">
+          {% if receipt_html %}
+            <div class="ta-html-receipt">{{ receipt_html | safe }}</div>
+          {% else %}
+            <pre class="receipt-pre receipt-full" lang="ta">{{ receipt_full }}</pre>
+          {% endif %}
+        </div>
+      {% else %}
+        {#
+          English: monospace <pre> with width: 48ch — exactly 48 columns, no right gap.
+          font-size: 10px + font-weight: 900 for maximum thermal darkness.
+          Address lines centered by receipt_formatter._render() via self.center().
+          INDEPENDENT from Tamil layout — Tamil changes do not affect this block.
+        #}
+        <div class="thermal-bill">
+          <pre class="receipt-pre receipt-full">{{ receipt_full }}</pre>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+<script>
+function setLang(lang) {
+  var p = new URLSearchParams(window.location.search);
+  p.set('language', lang);
+  window.location.search = p.toString();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bill #{{ bill.id }}</title>
+<link rel="stylesheet" href="/static/thermal_receipt.css">
+<style>
+  /* English PDF: match print-exactly — no gray bg, no padding */
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    width: 80mm;
+  }
+  .thermal-wrapper {
+    width: fit-content;
+    margin: 0;
+    padding: 0;
+  }
+</style>
+</head>
+<body class="{% if preview %}preview-mode{% endif %}">
+{% if preview %}
+<div class="no-print no-print-hint">Preview only — ESC/POS direct print is enabled.</div>
+{% endif %}
+
+<div class="thermal-wrapper">
+  <div class="thermal-bill">
+    {#
+      English PDF: receipt_full is the monospace 48-col text from receipt_formatter.
+      width: 48ch in CSS ensures exactly 48 columns, no right gap.
+      font-weight: 900 for maximum thermal ink darkness.
+      Address lines are centered in the formatter (_render → self.center()).
+    #}
+    <pre class="receipt-pre receipt-full">{{ receipt_full }}</pre>
+  </div>
+</div>
+
+<script>
+(function () {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    if (params.get("pos_reset") !== "1") return;
+    const billId = "{{ bill.id }}";
+    window.addEventListener("load", () => setTimeout(() => { try { window.print(); } catch(e) {} }, 150));
+    window.addEventListener("afterprint", () => {
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: "POS_PRINT_DONE", bill_id: billId }, "*");
+        }
+      } catch(e) {}
+      try { window.close(); } catch(e) {}
+    });
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

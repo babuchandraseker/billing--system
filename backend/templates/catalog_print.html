@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Price List | விலை பட்டியல்</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 10.5pt; color: #111; background: #fff; }
+
+    /* Toolbar injected by JS only — never in static HTML so print layout ignores it */
+    .toolbar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      background: #2e7d32; color: #fff;
+      padding: 8px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.88rem; gap: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .toolbar-btns { display: flex; gap: 8px; }
+    .tbtn { background: #fff; color: #2e7d32; border: none; padding: 7px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
+    .tbtn.wa { background: #25d366; color: #fff; }
+
+    /* page-wrap: NO top padding in base CSS — JS adds it after toolbar injection */
+    .page-wrap { padding: 14px 18px 14px; }
+
+    .doc-header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2.5px solid #2e7d32; padding-bottom: 8px; margin-bottom: 14px; }
+    .doc-header h1 { font-size: 1.15rem; font-weight: 800; color: #2e7d32; }
+    .doc-header .sub { font-size: 0.76rem; color: #555; margin-top: 2px; }
+    .doc-header .meta { font-size: 0.72rem; color: #888; text-align: right; }
+
+    /* cat-section: NO break-inside:avoid — some categories have 30+ rows and
+       would push entirely to next page, leaving the previous page blank.
+       Only the heading row is kept with its first data row via orphan control. */
+    .cat-section { margin-bottom: 14px; }
+    .cat-heading { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: #2e7d32; background: #f1f8e9; padding: 4px 8px; letter-spacing: 0.4px; border-left: 3px solid #2e7d32;
+      /* Keep heading glued to the table below it — never orphan the heading alone */
+      break-after: avoid; page-break-after: avoid; }
+
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; color: #388e3c; padding: 4px 8px; text-align: left; border-bottom: 1px solid #c8e6c9; background: #fafff8;
+      /* Keep header row glued to first data row */
+      break-after: avoid; page-break-after: avoid; }
+    td { padding: 5px 8px; font-size: 0.82rem; border-bottom: 1px solid #f0f0f0; vertical-align: middle; overflow: hidden; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+    tr:last-child td { border-bottom: 1px solid #c8e6c9; }
+
+    .col-no    { width: 32px; color: #bbb; font-size: 0.7rem; text-align: center; }
+    .col-tamil { width: 38%; font-weight: 700; font-family: 'Noto Sans Tamil', serif; word-break: break-word; }
+    .col-en    { width: 38%; color: #444; font-size: 0.78rem; word-break: break-word; }
+    .col-price { width: 14%; font-weight: 800; color: #2e7d32; text-align: right; white-space: nowrap; }
+    .col-unit  { width: 8%; color: #999; font-size: 0.68rem; text-align: right; white-space: nowrap; }
+
+    .doc-footer { text-align: center; padding: 10px; font-size: 0.68rem; color: #aaa; border-top: 1px solid #eee; margin-top: 12px; }
+
+    @page { margin: 12mm 10mm; size: A4; }
+
+    @media print {
+      /* Belt-and-suspenders: hide toolbar if somehow still in DOM */
+      .toolbar { display: none !important; }
+      /* Zero out all spacing that could push content off page 1 */
+      .page-wrap { padding-top: 0 !important; margin-top: 0 !important; }
+      html, body { margin: 0 !important; padding: 0 !important; }
+      /* Individual rows don't split mid-row */
+      tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+      /* Category heading stays with its table */
+      .cat-heading { break-after: avoid !important; page-break-after: avoid !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NO TOOLBAR IN HTML — injected purely by JS so print layout never sees it -->
+
+<div class="page-wrap" id="pageWrap">
+  <div class="doc-header">
+    <div>
+      <h1>🌾 Dhana Dhanya Kadai</h1>
+      <div class="sub">Product Price List &nbsp;·&nbsp; தயாரிப்பு விலை பட்டியல்</div>
+    </div>
+    <div class="meta">
+      Generated: <span id="gendate"></span><br>
+      Prices valid as of today<br>
+      Total: {{ products|length }} products
+    </div>
+  </div>
+
+  {% set categories = products | map(attribute='category') | unique | sort %}
+  {% for cat in categories %}
+    {% set cat_products = products | selectattr('category', 'equalto', cat) | list %}
+    {% if cat_products %}
+    <div class="cat-section">
+      <div class="cat-heading">{{ cat or 'General' }}</div>
+      <table>
+        <thead>
+          <tr>
+            <th class="col-no">#</th>
+            <th class="col-tamil">Tamil Name</th>
+            <th class="col-en">English Name</th>
+            <th class="col-price">Price</th>
+            <th class="col-unit">Unit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in cat_products %}
+          <tr>
+            <td class="col-no">{{ loop.index }}</td>
+            <td class="col-tamil">{{ p.name_tamil or '—' }}</td>
+            <td class="col-en">{{ p.name_english or p.name }}</td>
+            <td class="col-price">&#8377;{{ "%.0f"|format(p.s_rate or p.price or 0) }}</td>
+            <td class="col-unit">/kg</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  <div class="doc-footer">Dhana Dhanya Kadai &nbsp;·&nbsp; விலைகள் மாறலாம் (Prices subject to change)</div>
+</div>
+
+<script>
+  document.getElementById('gendate').textContent =
+    new Date().toLocaleDateString('en-IN', {day:'numeric', month:'long', year:'numeric'});
+
+  // Toolbar injected by JS only — never in static HTML so print engine never sees it
+  var toolbar = document.createElement('div');
+  toolbar.className = 'toolbar';
+  toolbar.id = 'toolbar';
+  toolbar.innerHTML =
+    '<span>\uD83C\uDF3E Dhana Dhanya Kadai \u2014 Product Price List</span>' +
+    '<div class="toolbar-btns">' +
+      '<button class="tbtn" onclick="printPage()">\uD83D\uDDA8\uFE0F Save as PDF / Print</button>' +
+      '<button class="tbtn wa" onclick="shareOnWhatsApp()">\uD83D\uDCE4 Share on WhatsApp</button>' +
+    '</div>';
+  document.body.insertBefore(toolbar, document.body.firstChild);
+  document.getElementById('pageWrap').style.paddingTop = '58px';
+
+  function printPage() {
+    var wrap = document.getElementById('pageWrap');
+    toolbar.parentNode.removeChild(toolbar);
+    wrap.style.paddingTop = '0';
+    window.print();
+    document.body.insertBefore(toolbar, document.body.firstChild);
+    wrap.style.paddingTop = '58px';
+  }
+
+  window.addEventListener('beforeprint', function () {
+    var wrap = document.getElementById('pageWrap');
+    if (toolbar.parentNode) toolbar.parentNode.removeChild(toolbar);
+    if (wrap) wrap.style.paddingTop = '0';
+  });
+  window.addEventListener('afterprint', function () {
+    var wrap = document.getElementById('pageWrap');
+    document.body.insertBefore(toolbar, document.body.firstChild);
+    if (wrap) wrap.style.paddingTop = '58px';
+  });
+
+  function shareOnWhatsApp() {
+    var msg = encodeURIComponent(
+      '\uD83C\uDF3E *Dhana Dhanya Kadai* \u2014 Latest Price List\n\n' +
+      'Feel free to place your order! \uD83D\uDE0A'
+    );
+    var a = document.createElement('a');
+    a.href = 'whatsapp://send?text=' + msg;
+    a.click();
+    setTimeout(function () {
+      window.open('https://web.whatsapp.com/send?text=' + msg, '_blank');
+    }, 1500);
+  }
+</script>
+</body>
+</html>

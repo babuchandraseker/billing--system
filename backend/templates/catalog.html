@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Live Product Catalog - Fresh prices, updated instantly">
+  <title>Product Catalog | தயாரிப்புகள்</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/catalog.css">
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<header class="catalog-header">
+  <div class="header-top">
+    <div>
+      <div class="shop-name">🌾 Dhana Dhanya Kadai</div>
+      <div class="shop-subtitle">Live Product Catalog &nbsp;·&nbsp; விலை நேரடி பட்டியல்</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-print" onclick="window.open('/catalog/print','_blank')" title="Print / PDF">
+        🖨️ PDF
+      </button>
+      <button class="btn-share" onclick="downloadAndShare()" title="Download PDF &amp; Share on WhatsApp">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+        Share
+      </button>
+    </div>
+  </div>
+
+  <!-- Search + Category Filter -->
+  <div class="search-bar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput"
+             placeholder="Search in Tamil, English or Tanglish…"
+             oninput="filterProducts()"
+             autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <select id="categoryFilter" onchange="filterProducts()">
+      <option value="">All</option>
+      {% set cats = products | map(attribute='category') | unique | sort %}
+      {% for cat in cats %}
+        {% if cat %}
+          <option value="{{ cat }}">{{ cat }}</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+  </div>
+</header>
+
+<!-- ═══ STATS BAR ═══ -->
+<div class="stats-bar">
+  <span><strong id="visibleCount">{{ products|length }}</strong> products</span>
+  <span class="live-badge">
+    <span class="live-dot"></span> Live prices
+  </span>
+</div>
+
+<!-- ═══ CATEGORY PILLS ═══ -->
+<div class="category-pills" id="categoryPills">
+  <span class="pill active" onclick="setPill(this, '')">All</span>
+  {% set cats = products | map(attribute='category') | unique | sort %}
+  {% for cat in cats %}
+    {% if cat %}
+      <span class="pill" onclick="setPill(this, '{{ cat }}')">{{ cat }}</span>
+    {% endif %}
+  {% endfor %}
+</div>
+
+<!-- ═══ PRODUCT GRID ═══ -->
+<main class="catalog-body">
+  <div class="product-grid" id="productGrid">
+
+    {% for p in products %}
+    {% set img_name = p.image_filename or p.image_path or p.image or '' %}
+    {% set has_real_img = img_name and img_name not in ['default.png', '', 'None'] %}
+
+    <div class="product-card"
+         data-name="{{ (p.name_english or p.name or '') | lower }}"
+         data-tamil="{{ (p.name_tamil or '') | lower }}"
+         data-tanglish="{{ (p.name_tanglish or '') | lower }}"
+         data-tags="{{ (p.search_tags or '') | lower }}"
+         data-category="{{ p.category or '' }}">
+
+      <!-- Image / Emoji -->
+      <div class="product-img-wrap">
+        {% if has_real_img %}
+          <img src="/images/{{ img_name }}"
+               alt="{{ p.name_english or p.name }}"
+               loading="lazy"
+               onerror="this.parentNode.innerHTML='<span class=product-emoji>{{ p.emoji or "🌾" }}</span>'"  >
+        {% else %}
+          <span class="product-emoji">{{ p.emoji or '🌾' }}</span>
+        {% endif %}
+      </div>
+
+      <!-- Info -->
+      <div class="product-info">
+        <div class="product-tamil">{{ p.name_tamil or p.name }}</div>
+        <div class="product-english">{{ p.name_english or p.name }}</div>
+
+        <div class="product-price-row">
+          <div>
+            <span class="product-price">₹{{ "%.0f"|format(p.s_rate or p.price or 0) }}</span>
+            <span class="product-unit"> /kg</span>
+          </div>
+          {% if p.category %}
+            <span class="product-category-tag">{{ p.category[:10] }}</span>
+          {% endif %}
+        </div>
+
+        {% if p.stock is not none %}
+          {% if p.stock > 10 %}
+            <span class="stock-badge stock-in">In Stock</span>
+          {% elif p.stock > 0 %}
+            <span class="stock-badge stock-low">Low: {{ "%.1f"|format(p.stock) }}kg</span>
+          {% else %}
+            <span class="stock-badge stock-out">Out of Stock</span>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+  </div>
+
+  <!-- No results state -->
+  <div id="noResults" class="no-results" style="display:none;">
+    <div class="emoji">🔎</div>
+    <p>No products found.<br>Try a different search or category.</p>
+  </div>
+</main>
+
+<!-- ═══ FOOTER ═══ -->
+<footer class="catalog-footer">
+  <strong>Dhana Dhanya Kadai</strong> &nbsp;·&nbsp;
+  Prices are live and updated instantly &nbsp;·&nbsp;
+  விலைகள் நேரடியாக புதுப்பிக்கப்படும்
+</footer>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ═══ JS ═══ -->
+<script>
+  // ── State ──────────────────────────────────────────
+  let activeCategory = '';
+
+  // ── Filter ─────────────────────────────────────────
+  function filterProducts() {
+    const query  = document.getElementById('searchInput').value.trim().toLowerCase();
+    const catSel = document.getElementById('categoryFilter').value;
+    const cat    = activeCategory || catSel;
+
+    const cards  = document.querySelectorAll('.product-card');
+    let visible  = 0;
+
+    cards.forEach(card => {
+      const matchCat  = !cat || card.dataset.category === cat;
+      const matchText = !query ||
+        card.dataset.name.includes(query)     ||
+        card.dataset.tamil.includes(query)    ||
+        card.dataset.tanglish.includes(query) ||
+        card.dataset.tags.includes(query);
+
+      const show = matchCat && matchText;
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    document.getElementById('visibleCount').textContent = visible;
+    document.getElementById('noResults').style.display  = visible === 0 ? 'block' : 'none';
+  }
+
+  // ── Pill clicks ────────────────────────────────────
+  function setPill(el, cat) {
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    activeCategory = cat;
+    // sync dropdown
+    document.getElementById('categoryFilter').value = cat;
+    filterProducts();
+  }
+
+  // ── WhatsApp: open directly with predefined message (no PDF download) ──
+  function downloadAndShare() {
+    const msg = encodeURIComponent(
+      '🌾 *Dhana Dhanya Kadai* — Latest Price List\n\n' +
+      
+      'Feel free to place your order! 😊'
+    );
+    // Try native WhatsApp app first, fallback to WhatsApp Web
+    const appLink = document.createElement('a');
+    appLink.href = 'whatsapp://send?text=' + msg;
+    appLink.click();
+    setTimeout(() => {
+      window.open('https://web.whatsapp.com/send?text=' + msg, '_blank');
+    }, 1500);
+  }
+
+  // ── Open catalog in new tab (easy share) ───────────
+  function openCatalogLink() {
+    const url = window.location.origin + '/catalog';
+    navigator.clipboard.writeText(url).then(() => showToast('✅ Link copied: ' + url));
+  }
+
+  // ── Copy Link ──────────────────────────────────────
+  function copyLink() {
+    const url = window.location.origin + '/catalog';
+    navigator.clipboard.writeText(url).then(() => showToast('✅ Link copied!'));
+  }
+
+  // ── Toast ──────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+</script>
+
+</body>
+</html>

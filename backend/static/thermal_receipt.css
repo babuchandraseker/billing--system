@@ -1,0 +1,609 @@
+/* ── Noto Sans Tamil — embedded locally for offline/print reliability ── */
+@font-face {
+  font-family: "Noto Sans Tamil";
+  src: url('/static/fonts/NotoSansTamil-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: "Noto Sans Tamil";
+  src: url('/static/fonts/NotoSansTamil-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Thermal Receipt — 80mm paper, 48-char grid
+   v80 — Full-width 80mm, 10px bold English, independent Tamil
+   ═══════════════════════════════════════════════════════════
+
+   KEY DESIGN PRINCIPLES:
+   1. English and Tamil are 100% independent — changing one cannot break the other.
+   2. English uses `width: 48ch` on <pre> to guarantee exactly 48 chars, no right gap.
+   3. Tamil uses HTML-table layout (receipt_html) — no fixed-width text dependency.
+   4. font-weight: 900 for maximum thermal print darkness on both languages.
+   5. The <pre> drives its own width; the container wraps it, not the other way around.
+
+   FONT SIZE MATH (English):
+     Courier New: char advance = 0.600em → 1ch = 0.600 × font-size
+     10px × 0.600 = 6px/char × 48 chars = 288px = 76.2mm  (fits in 80mm)
+     width: 48ch → browser computes exact column count, font-agnostic.
+
+   ESC/POS: WIDTH=48 in escpos_generator.py matches 48ch here.
+   ═══════════════════════════════════════════════════════════ */
+
+@page {
+  size: 80mm auto;
+  margin: 0;
+  padding: 0;
+}
+
+* {
+  box-sizing: border-box;
+  color: #000;
+  font-variant-ligatures: none;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #000;
+}
+
+/* ══════════════════════════════════════════════
+   PREVIEW PAGE SHELL
+   ══════════════════════════════════════════════ */
+body.preview-thermal-page {
+  width: 100% !important;
+  background: #c8c8c8;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: normal;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+.preview-toolbar {
+  width: 100%;
+  padding: 14px 0 12px;
+  text-align: center;
+  background: #c8c8c8;
+  white-space: normal;
+}
+.preview-toolbar h1 {
+  font-size: 18px;
+  font-family: system-ui, sans-serif;
+  font-weight: 700;
+  color: #166534;
+  margin: 0 0 4px;
+}
+.preview-toolbar span {
+  font-family: system-ui, sans-serif;
+  color: #555;
+  font-size: 12px;
+}
+.preview-toolbar .btn-row { margin-top: 8px; }
+.preview-toolbar button {
+  margin: 0 4px;
+  padding: 7px 20px;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 1px solid #999;
+  background: #fff;
+  font-family: system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+}
+.preview-toolbar button.active {
+  color: #fff;
+  background: #166534;
+  border-color: #166534;
+}
+
+/* Centering shell */
+.preview-page-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0 60px;
+  width: 100%;
+}
+
+/* White paper card */
+.thermal-paper-shadow {
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.28);
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ══════════════════════════════════════════════
+   ENGLISH RECEIPT CONTAINER
+   Width: fit-content wraps the 48ch pre exactly.
+   No padding on the container — the pre owns its width.
+   font-weight: 900 → maximum thermal print darkness.
+   font-size: 10px + Courier New 0.600 ratio → 1ch = 6px
+   48ch = 288px = 76.2mm — fills 80mm paper cleanly.
+   ══════════════════════════════════════════════ */
+.thermal-bill {
+  width: fit-content;
+  max-width: 80mm;
+  padding: 3mm 2mm;
+  box-sizing: border-box;
+  background: white;
+  margin: 0 auto;
+  display: block;
+  overflow: visible;
+
+  font-family: 'Courier New', Courier, 'Noto Sans Mono', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.3;
+  letter-spacing: 0;
+  word-spacing: 0;
+  color: #000;
+}
+
+/* ══════════════════════════════════════════════
+   ENGLISH PRE BLOCK
+   width: 48ch — exactly 48 monospace columns.
+   No right gap. No overflow. No clipping.
+   white-space: pre — preserve all spaces exactly.
+   font-weight: 900 — darkest possible output.
+   ══════════════════════════════════════════════ */
+.thermal-bill pre.receipt-pre,
+.thermal-bill pre.receipt-full,
+.thermal-bill pre.receipt-block,
+.thermal-bill pre.thermal-receipt-pre {
+  width: 48ch;
+  min-width: 48ch;
+  max-width: 48ch;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: 'Courier New', Courier, 'Noto Sans Mono', monospace;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.3;
+  letter-spacing: 0;
+  word-spacing: 0;
+  white-space: pre;
+  overflow: visible;
+  color: #000;
+  display: block;
+  box-sizing: content-box;
+  word-wrap: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+  -webkit-text-stroke: 0.3px #000;
+}
+
+/* ══════════════════════════════════════════════
+   TAMIL RECEIPT CONTAINER
+   INDEPENDENT from English — font, size, layout
+   all set here without affecting .thermal-bill.
+   Tamil uses HTML-table layout (receipt_html).
+   ══════════════════════════════════════════════ */
+.thermal-bill.ta,
+.thermal-tamil {
+  width: 76mm;
+  max-width: 76mm;
+  min-width: 76mm;
+  padding: 2mm 1.5mm;
+  box-sizing: border-box;
+  background: white;
+  margin: 0 auto;
+  display: block;
+  overflow-x: visible;
+  overflow-y: visible;
+
+  font-family:
+    "Noto Sans Tamil",
+    "Latha",
+    "Arial Unicode MS",
+    sans-serif;
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0;
+  word-spacing: 0;
+  font-weight: 700;
+  color: #000;
+  text-rendering: optimizeLegibility;
+}
+
+/* ══════════════════════════════════════════════
+   TAMIL PRE BLOCK (monospace fallback only)
+   Used only when receipt_html is unavailable.
+   Tamil glyphs are NOT monospace — this is a
+   fallback only, not the primary Tamil path.
+   ══════════════════════════════════════════════ */
+.thermal-bill.ta pre.receipt-pre,
+.thermal-bill.ta pre.receipt-full,
+.thermal-tamil pre.receipt-pre,
+.thermal-tamil pre.receipt-full {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family:
+    "Noto Sans Tamil",
+    "Noto Sans Mono",
+    "Courier New", Courier, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: pre;
+  overflow: visible;
+  color: #000;
+  display: block;
+  word-wrap: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* ══════════════════════════════════════════════
+   MISC HELPERS
+   ══════════════════════════════════════════════ */
+.separator,
+.receipt-separator {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  margin: 4px 0;
+  line-height: 1;
+  display: block;
+  box-sizing: border-box;
+}
+
+.bill-summary,
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  white-space: nowrap;
+  margin-top: 4px;
+  margin-bottom: 4px;
+  box-sizing: border-box;
+}
+
+.bill-total {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 900;
+  padding-right: 2px;
+  box-sizing: border-box;
+}
+
+.no-print-hint {
+  text-align: center;
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 400;
+  padding: 5px 8px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  margin: 0 0 4px;
+  white-space: normal;
+}
+
+body.preview-mode {
+  background: #efefef;
+  white-space: normal;
+}
+
+/* ══════════════════════════════════════════════
+   PRINT / PDF — ENGLISH
+   At print: 80mm page, no margins.
+   Container clips to 80mm, pre stays 48ch.
+   font-weight: 900 + -webkit-print-color-adjust
+   ensures maximum ink coverage on thermal paper.
+   ══════════════════════════════════════════════ */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: 80mm !important;
+    min-height: 0 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print,
+  .no-print-hint,
+  .preview-toolbar {
+    display: none !important;
+  }
+
+  body.preview-thermal-page {
+    background: #fff !important;
+    width: 80mm !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  .preview-page-body,
+  .thermal-wrapper {
+    display: block !important;
+    padding: 0 !important;
+    padding-top: 0 !important;
+    width: 100% !important;
+  }
+
+  .thermal-paper-shadow {
+    box-shadow: none !important;
+    border: none !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* ── English print ── */
+  .thermal-bill {
+    width: fit-content !important;
+    max-width: 80mm !important;
+    padding: 1mm 2mm !important;
+    page-break-after: avoid;
+    break-after: avoid;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+  }
+
+  .thermal-bill pre.receipt-pre,
+  .thermal-bill pre.receipt-full,
+  .thermal-bill pre.receipt-block {
+    width: 48ch !important;
+    min-width: 48ch !important;
+    max-width: 48ch !important;
+    overflow: visible !important;
+    font-size: 10px !important;
+    font-weight: 900 !important;
+    white-space: pre !important;
+    -webkit-text-stroke: 0.3px #000 !important;
+  }
+
+  /* ── Tamil print — independent ── */
+  .thermal-bill.ta,
+  .thermal-tamil {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    padding: 1mm 1.5mm !important;
+    page-break-after: avoid;
+    break-after: avoid;
+    box-shadow: none !important;
+    border: none !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+  }
+
+  .thermal-bill.ta pre.receipt-pre,
+  .thermal-bill.ta pre.receipt-full,
+  .thermal-tamil pre.receipt-pre,
+  .thermal-tamil pre.receipt-full {
+    overflow: visible !important;
+    overflow-x: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 9px !important;
+    white-space: pre !important;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   TAMIL HTML RECEIPT — table/flexbox layout
+   FULLY INDEPENDENT from English pre/monospace.
+   No fixed-width text. Proportional Tamil glyphs.
+   font-weight: 700 for thermal darkness.
+   ══════════════════════════════════════════════ */
+.ta-html-receipt {
+  font-family:
+    "Noto Sans Tamil",
+    "Latha",
+    "Arial Unicode MS",
+    sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #000;
+  width: 100%;
+  box-sizing: border-box;
+  -webkit-text-stroke: 0.2px #000;
+}
+
+/* Separators */
+.ta-sep-thin {
+  border: none;
+  border-top: 1px dashed #000;
+  margin: 3px 0;
+}
+.ta-sep-bold {
+  border: none;
+  border-top: 2px solid #000;
+  margin: 3px 0;
+}
+
+/* Text helpers — Tamil only */
+.ta-center  { text-align: center !important; }
+.ta-bold    { font-weight: 700; }
+.ta-small   { font-size: 9px; text-align: center; }
+.ta-shop-name { font-size: 12px; font-weight: 700; text-align: center; }
+.ta-footer  { font-size: 9px; padding: 2px 0; text-align: center; }
+
+/* ── METADATA ROWS ── */
+.ta-meta-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+.ta-meta-table .label {
+  white-space: nowrap;
+  font-weight: 700;
+  vertical-align: top;
+  padding: 1.5px 8px 1.5px 0;
+}
+.ta-meta-table .value {
+  white-space: normal;
+  word-break: break-word;
+  text-align: left;
+  vertical-align: top;
+  padding: 1.5px 0;
+}
+
+/* ── PRODUCT TABLE ── */
+.ta-items-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  box-sizing: border-box;
+}
+.ta-items-table thead tr {
+  border-bottom: 1px solid #000;
+}
+.ta-items-table th {
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  padding: 2px 4px;
+  line-height: 1.2;
+  vertical-align: bottom;
+}
+.ta-items-table td {
+  padding: 2px 1px;
+  vertical-align: top;
+}
+.ta-items-table th:nth-child(1),
+.ta-items-table td:nth-child(1) { width: 12%; text-align: center; }
+.ta-items-table th:nth-child(1) { padding-right: 10px; }
+.ta-items-table th:nth-child(2),
+.ta-items-table td:nth-child(2) { width: 48%; text-align: left; overflow-wrap: break-word; word-break: break-word; }
+.ta-items-table th:nth-child(2) { text-align: left; padding-left: 8px; }
+.ta-items-table th:nth-child(3),
+.ta-items-table td:nth-child(3) { width: 15%; text-align: center; white-space: nowrap; }
+.ta-items-table th:nth-child(4),
+.ta-items-table td:nth-child(4) { width: 25%; text-align: right; padding-right: 0; white-space: nowrap; }
+.ta-items-table th:nth-child(4) { text-align: right; }
+
+/* ── SUMMARY ROWS ── */
+.ta-summary-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.5px 0;
+  font-size: 10px;
+  align-items: baseline;
+  gap: 0 6px;
+}
+.ta-summary-row span:nth-child(1) { text-align: left; white-space: nowrap; }
+.ta-summary-row span:nth-child(1)::after { content: " :"; }
+.ta-summary-row span:nth-child(2) { text-align: left; }
+
+/* ── TOTAL + PAYMENT ROWS ── */
+.ta-total-row {
+  display: grid;
+  grid-template-columns: 1fr 28%;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 0;
+  align-items: baseline;
+}
+.ta-total-row span:nth-child(1) { text-align: left; }
+.ta-total-row span:nth-child(2) { text-align: right; padding-right: 0; white-space: nowrap; }
+
+.ta-payment-row {
+  display: grid;
+  grid-template-columns: 1fr 28%;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.5px 0;
+  align-items: baseline;
+}
+.ta-payment-row span:nth-child(1) { text-align: left; }
+.ta-payment-row span:nth-child(2) { text-align: right; padding-right: 0; white-space: nowrap; }
+
+/* ── NUTRITION ROWS ── */
+.ta-nutr-row {
+  display: grid;
+  grid-template-columns: 1fr 28%;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.5px 0;
+  font-size: 10px;
+  align-items: baseline;
+}
+.ta-nutr-row span:nth-child(1) { text-align: left; overflow-wrap: break-word; word-break: break-word; }
+.ta-nutr-row span:nth-child(2) { text-align: right; padding-right: 0; white-space: nowrap; }
+
+/* ── Tamil @media print ── */
+@media print {
+  /* Force font embed on print — prevents fallback to system font that can't render Tamil */
+  @font-face {
+    font-family: "Noto Sans Tamil";
+    src: url('/static/fonts/NotoSansTamil-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+  }
+  @font-face {
+    font-family: "Noto Sans Tamil";
+    src: url('/static/fonts/NotoSansTamil-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+  }
+  .thermal-bill.ta,
+  .thermal-tamil {
+    overflow-x: visible !important;
+    padding: 1mm 1.5mm !important;
+  }
+  .ta-html-receipt {
+    width: 100% !important;
+    font-family: "Noto Sans Tamil", "Latha", sans-serif !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .ta-items-table {
+    width: 100% !important;
+  }
+  .ta-items-table th {
+    white-space: nowrap !important;
+    font-size: 8px !important;
+    overflow: visible !important;
+  }
+  /* Ensure all Tamil text elements use the correct font on print */
+  .ta-html-receipt *,
+  .ta-shop-name,
+  .ta-meta-table,
+  .ta-items-table,
+  .ta-total-row,
+  .ta-payment-row,
+  .ta-nutr-row,
+  .ta-footer {
+    font-family: "Noto Sans Tamil", "Latha", sans-serif !important;
+  }
+}
