@@ -2751,22 +2751,12 @@ async function fetchReceiptPreviewText(billId, paidAmount) {
     return data.preview || (Array.isArray(data.formatted_lines) ? data.formatted_lines.join('\n') : '');
 }
 
-/** On-screen / browser-print fallback uses same monospace text as thermal/PDF. */
-async function renderPrintAreaFromServer(billId, paidAmount) {
-    const pa = document.getElementById('print-area');
-    if (!pa) return '';
-    try {
-        const text = await fetchReceiptPreviewText(billId, paidAmount);
-        pa.innerHTML = `<pre class="thermal-receipt-pre">${_escapeReceiptHtml(text)}</pre>`;
-        return text;
-    } catch (e) {
-        console.warn('Receipt preview fetch failed:', e);
-        pa.innerHTML = '';
-        return '';
-    }
-}
+// G10: the hidden #print-area receipt copy (and the function filling it) was removed. It
+// was a second receipt in the POS page that Ctrl+P / the browser print
+// menu sent to whatever printer the browser chose. Receipts print only through
+// the Print button (directThermalPrint → the ONE configured mode).
 
-/** @deprecated — client-side HTML receipt removed; use renderPrintAreaFromServer. */
+/** @deprecated — client-side HTML receipt removed. */
 function buildThermalHTML() {
     return '';
 }
@@ -2856,6 +2846,17 @@ function _afterSuccessfulPrint() {
     setTimeout(() => resetBillingState(), 900);
 }
 
+// G10: block Ctrl+P / Cmd+P in the POS window. It printed the hidden
+// #print-area copy via the browser. Browser printing is done only from the
+// /print-bill window when mode is explicitly "browser".
+window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && String(e.key).toLowerCase() === 'p') {
+        e.preventDefault();
+        e.stopPropagation();
+        showToast('Use the Print button (F3) — Ctrl+P is disabled');
+    }
+}, true);
+
 // Listen for browser-print completion from /print-bill popup window
 window.addEventListener('message', (ev) => {
     const d = ev && ev.data;
@@ -2866,14 +2867,47 @@ window.addEventListener('message', (ev) => {
     _afterSuccessfulPrint();
 });
 
+let _printOpSeq = 0;   // id of the newest Print-button operation
+
 async function handlePrint() {
     if (isPrinting) return;
     if (!cart.length) { showToast('⚠️ Cart is empty'); return; }
     isPrinting = true;
 
+    // G9: the whole Print operation (save + print) is limited to 20 s. On timeout
+    // the button is released and the reason shown; nothing is retried, and the
+    // late result of this operation is ignored (checked via deadline.expired).
+    const opId = ++_printOpSeq;
+    const _release = () => { if (opId === _printOpSeq) isPrinting = false; };
+    let savedBillId = null;
+    const deadline = _startPrintDeadline(() => {
+        _release();
+        if (savedBillId) {
+            showPrintErrorDialog(savedBillId, _printTimeoutMessage(),
+                `Bill #${savedBillId} is saved — printing did not finish`);
+        } else {
+            showPrintErrorDialog(null,
+                `Saving the bill did not finish within ${PRINT_TIMEOUT_MS / 1000} seconds, so nothing was printed.\n\n`
+                + 'The cart has been kept. Press Print again — the same bill is reused, no duplicate bill is created.',
+                'Bill not confirmed as saved — nothing was printed');
+        }
+    });
+
     // Step 1: save fresh on every Print (every Print = one DB record)
-    const bill = await _saveBillCore({ silent: false });
-    if (!bill) { isPrinting = false; return; }
+    let bill = null;
+    try {
+        bill = await _saveBillCore({ silent: false });
+    } catch (e) {
+        if (!deadline.expired) {
+            deadline.finish();
+            _release();
+            showPrintErrorDialog(null, 'The bill could not be saved: ' + ((e && e.message) || e));
+        }
+        return;
+    }
+    if (deadline.expired) return;          // too late — the timeout was already reported
+    if (!bill) { deadline.finish(); _release(); return; }
+    savedBillId = bill.id;
 
     // Step 2: update loyalty star display with server-confirmed data
     if (bill.stars !== undefined) {
@@ -2897,28 +2931,34 @@ async function handlePrint() {
     const _isCredit     = (parseFloat(bill.due_amount) || 0) > 0;
     const _paidForPrint = (!_isCredit && _enteredPaid > _billTotal) ? _enteredPaid : null;
 
-    await renderPrintAreaFromServer(bill.id, _paidForPrint);
+    // G10: the hidden #print-area copy is no longer filled here. It made Ctrl+P
+    // print a second receipt to whatever printer the browser picked. The
+    // Print button (directThermalPrint) is the only print workflow.
 
     setTimeout(async () => {
         try {
-            if (bill && bill.id) {
-                const printed = await directThermalPrint(bill.id, _paidForPrint);
+            if (bill && bill.id && !deadline.expired) {
+                const printed = await directThermalPrint(bill.id, _paidForPrint, deadline);
+                if (deadline.expired) return;   // late result: never reset/alter the screen
                 if (printed) {
                     _afterSuccessfulPrint();
-                } else if ((window._lastPrintMode || (_printerSettings.mode || 'escpos')) === 'escpos') {
-                    // Bill IS saved; only printing failed. Cart is kept so Print can be
-                    // pressed again — that reprints the SAME bill (no duplicate).
-                    showToast(`⚠️ Bill #${bill.id} is SAVED but did not print. Fix the printer and press Print again (same bill will be reprinted).`);
-                } else if ((window._lastPrintMode || (_printerSettings.mode || 'escpos')) === 'browser') {
+                } else if (window._lastPrintMode === 'browser') {
                     // Wait for popup to notify print completion
                     _pendingBrowserPrintBillId = String(bill.id);
                 }
+                // On failure directThermalPrint has already shown the EXACT error in a
+                // dialog — nothing here may replace it. The bill IS saved and the cart
+                // is kept, so Print again reprints the SAME bill (no duplicate).
             }
         } catch (e) {
             console.error('Print error:', e);
-            showToast('Print failed: ' + (e.message || e));
+            if (!deadline.expired) showPrintErrorDialog(bill && bill.id, e.message || String(e));
+        } finally {
+            if (!deadline.expired) {
+                deadline.finish();
+                _release();
+            }
         }
-        isPrinting = false;
     }, 100);
 }
 
@@ -6255,12 +6295,89 @@ async function printViaQZTray(rawBase64, printerName) {
     if (!window.QZTrayPrint) {
         throw new Error('QZ Tray helper not loaded');
     }
-    await window.QZTrayPrint.printRawEscpos(rawBase64, printerName || undefined);
+    // Strict: never let QZ pick its default printer.
+    if (!printerName) {
+        throw new Error('No QZ printer name configured (Admin → Printer Settings).');
+    }
+    await window.QZTrayPrint.printRawEscpos(rawBase64, printerName);
 }
 
-async function directThermalPrint(billId, paidAmount) {
+const PRINT_TIMEOUT_MS = 20000;   // the cashier never waits longer than this
+
+/**
+ * One Print-button operation's time limit. After PRINT_TIMEOUT_MS the pending
+ * request is aborted and onTimeout runs once; `expired` then stays true so a
+ * late response is ignored (it can never print again or change the screen).
+ */
+function _startPrintDeadline(onTimeout) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+        controller.abort();
+        try { onTimeout(); } catch (e) { console.error(e); }
+    }, PRINT_TIMEOUT_MS);
+    return {
+        signal: controller.signal,
+        get expired() { return controller.signal.aborted; },
+        finish() { clearTimeout(timer); },
+    };
+}
+
+function _printTimeoutMessage() {
+    return `Printing did not finish within ${PRINT_TIMEOUT_MS / 1000} seconds, so the app stopped waiting.\n\n`
+        + 'The printer may still print this receipt late. Check the printer and the paper '
+        + 'BEFORE pressing Print again, so the receipt is not printed twice.';
+}
+
+/** Parse a print API response; never throws, always yields a readable message. */
+async function _readPrintResponse(res) {
+    let text = '';
+    try { text = await res.text(); } catch (e) { /* handled below */ }
+    try {
+        const data = JSON.parse(text);
+        if (data && typeof data === 'object') {
+            if (!data.success && !data.message) {
+                data.message = res.status === 401
+                    ? 'Your login session has expired. Log in again, then print.'
+                    : (data.error || `Print failed (HTTP ${res.status}) with no error message.`);
+            }
+            return data;
+        }
+    } catch (e) { /* not JSON — e.g. an HTML error page */ }
+    return {
+        success: false,
+        message: res.status === 401
+            ? 'Your login session has expired. Log in again, then print.'
+            : `The billing server returned an unreadable response (HTTP ${res.status}). `
+              + 'Check the printer before printing again.',
+    };
+}
+
+/**
+ * Print the bill with the ONE configured print mode.
+ * Returns true only when the configured printer accepted the receipt.
+ * On any failure the exact error is shown once in a persistent dialog
+ * (showPrintErrorDialog) and false is returned — there is no fallback to
+ * another mode or printer, and callers must not show a second message.
+ */
+async function directThermalPrint(billId, paidAmount, deadline = null) {
     if (!billId) return false;
-    await loadPrinterSettings();
+    window._lastPrintMode = null;   // never act on a previous print's mode
+    // Reprint etc. get their own 20 s limit; handlePrint passes its limit in.
+    const ownDeadline = !deadline;
+    if (ownDeadline) {
+        deadline = _startPrintDeadline(() => showPrintErrorDialog(billId, _printTimeoutMessage(),
+            `Bill #${billId} is saved — printing did not finish`));
+    }
+    try {
+        return await _directThermalPrintOnce(billId, paidAmount, deadline);
+    } finally {
+        if (ownDeadline) deadline.finish();
+    }
+}
+
+async function _directThermalPrintOnce(billId, paidAmount, deadline) {
+    // The server decides the mode from the SAVED settings; nothing is loaded
+    // here (the settings GET also scans printers/USB and can be slow).
     const lang = _resolveBillLang();
     const btype = window.currentBillType || 'normal';
     const body = {
@@ -6276,20 +6393,24 @@ async function directThermalPrint(billId, paidAmount) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
+            signal: deadline.signal,
         });
-        const data = await res.json();
+        const data = await _readPrintResponse(res);
+        if (deadline.expired) return false;   // timed out: the timeout dialog is already shown
         window._lastPrintMode = data && data.mode ? data.mode : null;
         if (data.success && data.mode === 'escpos') {
-            showToast('🖨️ Sent to printer');
+            showToast('🖨️ ' + (data.message || 'Sent to printer'));
             return true;
         }
         if (data.success && data.mode === 'qz' && data.raw_base64) {
             try {
                 await printViaQZTray(data.raw_base64, data.printer_name);
+                if (deadline.expired) return false;
                 showToast('🖨️ Sent to QZ Tray');
                 return true;
             } catch (qzErr) {
-                showToast('⚠️ QZ Tray: ' + (qzErr.message || qzErr) + ' — install QZ Tray from qz.io');
+                if (deadline.expired) return false;
+                showPrintErrorDialog(billId, 'QZ Tray: ' + (qzErr.message || qzErr));
                 return false;
             }
         }
@@ -6300,17 +6421,69 @@ async function directThermalPrint(billId, paidAmount) {
             // Preview mode is not an actual print; do NOT auto-reset POS.
             return false;
         }
-        if (data.mode === 'browser' && data.print_url) {
+        // Browser printing only when the backend confirms it is the CONFIGURED mode.
+        if (data.success && data.mode === 'browser' && data.print_url) {
             openBillPreview(billId, paidAmount);
             return false;
         }
-        showToast('⚠️ Print failed: ' + (data.message || 'Unknown error'));
+        showPrintErrorDialog(billId, data.message || `Print failed (HTTP ${res.status}) with no error message.`);
         return false;
     } catch (e) {
-        showToast('⚠️ Print error: ' + (e.message || e));
+        if (deadline.expired) return false;   // aborted by the timeout — already reported
+        showPrintErrorDialog(billId, (e && e.message) || String(e));
         return false;
     }
 }
+
+/**
+ * Persistent print-failure dialog. Shows the exact error text exactly as
+ * received and stays until the cashier closes it — a toast would vanish
+ * (or be overwritten by the next toast) before it could be read.
+ */
+function showPrintErrorDialog(billId, message, title) {
+    const old = document.getElementById('print-error-modal');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'print-error-modal';
+    overlay.setAttribute('role', 'alertdialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:12px;width:560px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden;font-family:inherit;';
+
+    const head = document.createElement('div');
+    head.style.cssText = 'padding:14px 18px;background:#b91c1c;color:#fff;font-weight:700;font-size:15px;';
+    head.textContent = '❌ ' + (title || (billId
+        ? `Bill #${billId} is saved, but it did NOT print`
+        : 'Printing failed'));
+
+    const msg = document.createElement('pre');
+    msg.id = 'print-error-message';
+    msg.style.cssText = 'margin:0;padding:16px 18px;white-space:pre-wrap;word-break:break-word;font-family:Consolas,monospace;font-size:13px;color:#111;background:#fef2f2;max-height:45vh;overflow:auto;';
+    msg.textContent = message;   // exact text; textContent so nothing is interpreted as HTML
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'padding:10px 18px;color:#444;font-size:12.5px;';
+    hint.textContent = 'Fix the problem above, then print again. The same bill number is reprinted — no duplicate bill is created.';
+
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.textContent = 'OK';
+    ok.style.cssText = 'margin:0 18px 16px;float:right;padding:9px 28px;border:none;background:#b91c1c;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;';
+    ok.addEventListener('click', () => overlay.remove());
+
+    box.append(head, msg, hint, ok);
+    const clear = document.createElement('div');
+    clear.style.clear = 'both';
+    box.appendChild(clear);
+    overlay.appendChild(box);
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.remove(); });
+    document.body.appendChild(overlay);
+    ok.focus();
+}
+window.showPrintErrorDialog = showPrintErrorDialog;
 
 async function reprintBillById(billId, paidAmount) {
     if (!billId) return;
@@ -6700,14 +6873,20 @@ async function savePrinterSettings() {
         if (d.success) {
             _printerSettings = d.settings;
             showToast('Printer settings saved');
-        } else showToast('Save failed');
+            return true;
+        }
+        // Rejected (e.g. no printer selected, or USB + Windows printer both set):
+        // nothing was saved — show the exact reason.
+        alert('Printer settings NOT saved:\n\n' + (d.message || 'Unknown error'));
+        return false;
     } catch (e) {
-        showToast('Save error: ' + e.message);
+        alert('Printer settings NOT saved:\n\n' + e.message);
+        return false;
     }
 }
 
 async function testThermalPrinter(language = 'english') {
-    await savePrinterSettings();
+    if (!(await savePrinterSettings())) return;   // never test with stale settings
     const lang = (language === 'tamil' || language === 'ta') ? 'tamil' : 'english';
     const label = lang === 'tamil' ? 'தமிழ்' : 'English';
     try {

@@ -29,6 +29,61 @@ DEFAULT_SETTINGS = {
     'qz_printer_name': '',
 }
 
+# Print modes the user can explicitly choose. Anything else is a configuration
+# error — it is never silently treated as one of these.
+VALID_MODES = ('escpos', 'qz', 'browser', 'preview')
+VALID_PAPER_WIDTHS_MM = (58, 80)
+
+
+def validate_settings(settings):
+    """Return a list of configuration errors (empty list = valid).
+
+    Strict: the configured mode and printer are used exactly as saved. There is
+    no fallback to another mode or to the Windows default printer, so an
+    incomplete or ambiguous configuration must be rejected up front.
+    """
+    s = settings or {}
+    errors = []
+
+    mode = s.get('mode')
+    if mode not in VALID_MODES:
+        errors.append(f'Invalid print mode {mode!r}. Choose one of: {", ".join(VALID_MODES)}.')
+
+    try:
+        paper = int(s.get('paper_width_mm'))
+    except (TypeError, ValueError):
+        paper = None
+    if paper not in VALID_PAPER_WIDTHS_MM:
+        errors.append(f'Invalid paper width {s.get("paper_width_mm")!r}. Choose 58 or 80 (mm).')
+
+    vid = str(s.get('usb_vendor_id') or '').strip()
+    pid = str(s.get('usb_product_id') or '').strip()
+    if bool(vid) != bool(pid):
+        errors.append('USB Vendor ID and USB Product ID must both be set, or both left empty.')
+    elif vid:
+        try:
+            int(vid, 16)
+            int(pid, 16)
+        except ValueError:
+            errors.append(f'USB IDs must be hexadecimal (e.g. 04b8): got {vid!r}:{pid!r}.')
+
+    printer_name = str(s.get('printer_name') or '').strip()
+    if mode == 'escpos':
+        if vid and pid and printer_name:
+            errors.append(
+                f'Both a USB printer ({vid}:{pid}) and a Windows printer ({printer_name!r}) are set. '
+                'Clear one of them so only one printer is used.'
+            )
+        elif not (vid and pid) and not printer_name:
+            errors.append(
+                'No thermal printer configured. Select the Windows printer name, '
+                'or enter the USB Vendor ID and Product ID.'
+            )
+    if mode == 'qz' and not str(s.get('qz_printer_name') or '').strip():
+        errors.append('QZ Tray mode needs a QZ printer name.')
+
+    return errors
+
 
 class PrinterManager:
     """Load/save printer preferences from app_settings."""
@@ -147,14 +202,15 @@ class PrinterManager:
             return ''
 
     def ensure_defaults(self):
-        """First-run: pick default Windows printer and 80mm / 48 chars."""
+        """First-run: 80mm / 48 chars.
+
+        Never fills in printer_name from the Windows default printer — that
+        silently chose a printer the user never selected (e.g. an office
+        laser or "Microsoft Print to PDF"). The printer must be chosen
+        explicitly in Admin → Printer Settings.
+        """
         settings = self.load_settings()
         changed = False
-        if not (settings.get('printer_name') or '').strip():
-            default = self.default_windows_printer()
-            if default:
-                settings['printer_name'] = default
-                changed = True
         if not settings.get('chars_per_line'):
             settings['chars_per_line'] = 48  # Font A: 48 cols on 80mm paper
             changed = True

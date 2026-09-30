@@ -3,14 +3,87 @@ Thermal printer API routes — keeps app.py lean.
 """
 
 import base64
+import functools
 import logging
+import uuid
 from flask import jsonify, request, render_template
 
-from services.printer_manager import PrinterManager
+from services.printer_manager import PrinterManager, validate_settings
 from services.receipt_formatter import ReceiptFormatter, format_receipt_lines, format_receipt_text
 from services.thermal_printer import ThermalPrinterService
 
 logger = logging.getLogger('billing.printer')
+
+# HTTP status for each machine-readable print error_code.
+_ERROR_STATUS = {
+    'invalid_request': 400,
+    'invalid_settings': 400,
+    'printer_busy': 409,
+    'printer_unavailable': 503,
+    'timeout': 504,
+}
+
+
+class _BadRequest(Exception):
+    """Invalid request data — reported to the client as-is (status 400)."""
+
+
+def _print_failure(result, **extra):
+    """(json, status) for a failed print result, always with error_code + message."""
+    result = dict(result)
+    result['success'] = False
+    result.setdefault('error_code', 'printer_error')
+    result.update(extra)
+    return jsonify(result), _ERROR_STATUS.get(result['error_code'], 500)
+
+
+def _readable_errors(view):
+    """Never let a raw traceback / HTML error page reach the POS screen.
+
+    Unexpected exceptions are logged in full (with a reference code) and the
+    client gets JSON with a short readable message — no traceback, no paths.
+    """
+    @functools.wraps(view)
+    def wrapper(*args, **kwargs):
+        try:
+            return view(*args, **kwargs)
+        except _BadRequest as e:
+            return jsonify({'success': False, 'error_code': 'invalid_request',
+                            'stage': 'request', 'message': str(e)}), 400
+        except Exception:
+            ref = uuid.uuid4().hex[:8].upper()
+            logger.exception('Unexpected error in %s %s [ref %s]', request.method, request.path, ref)
+            return jsonify({
+                'success': False,
+                'error_code': 'unexpected_error',
+                'stage': 'server',
+                'reference': ref,
+                'message': (f'Unexpected error in the billing software (reference {ref}). '
+                            'Nothing was printed. The details were written to the log file '
+                            '(logs/billing_app.log) for support.'),
+            }), 500
+    return wrapper
+
+
+def _json_body():
+    data = request.get_json(silent=True)
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise _BadRequest('Invalid request: expected a JSON object.')
+    return data
+
+
+def _paid_override(value):
+    if value is None or value == '':
+        return None
+    try:
+        amount = round(float(value), 2)
+    except (TypeError, ValueError):
+        raise _BadRequest(f'Invalid paid amount {value!r}.')
+    if amount != amount or amount < 0:   # NaN / negative
+        raise _BadRequest(f'Invalid paid amount {value!r}.')
+    return amount
 
 
 def _debug_dir():
@@ -61,10 +134,20 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
         })
 
     @app.route('/api/printer/settings', methods=['POST'])
+    @_readable_errors
     def printer_settings_save():
-        data = request.get_json(silent=True) or {}
+        data = _json_body()
         mgr = _manager()
-        saved = mgr.save_settings(data.get('settings') or data)
+        incoming = data.get('settings') or data
+        if not isinstance(incoming, dict):
+            raise _BadRequest('Invalid printer settings: expected a JSON object.')
+        candidate = mgr.load_settings()
+        candidate.update(incoming)
+        # Validate what would actually be stored; nothing is saved when invalid.
+        errors = validate_settings(candidate)
+        if errors:
+            return jsonify({'success': False, 'message': ' '.join(errors), 'errors': errors}), 400
+        saved = mgr.save_settings(incoming)
         return jsonify({'success': True, 'settings': saved})
 
     @app.route('/api/printer/detect', methods=['GET'])
@@ -76,25 +159,27 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
         })
 
     @app.route('/api/printer/test', methods=['POST'])
+    @_readable_errors
     def printer_test():
-        data = request.get_json(silent=True) or {}
+        data = _json_body()
         language = _receipt_language(data.get('language', 'english'))
         mgr = _manager()
         settings = mgr.load_settings()
         svc = ThermalPrinterService(settings)
         result = svc.print_test_receipt(language=language)
         result['language'] = language
-        status = 200 if result.get('success') else 500
-        return jsonify(result), status
+        if not result.get('success'):
+            return _print_failure(result)
+        return jsonify(result), 200
 
     @app.route('/api/printer/preview', methods=['POST'])
+    @_readable_errors
     def printer_preview():
-        data = request.get_json(silent=True) or {}
+        data = _json_body()
         bill_id = data.get('bill_id')
         language = _receipt_language(data.get('language', 'english'))
         bill_type = data.get('bill_type', 'normal')
-        paid = data.get('paid_amount')
-        paid_override = round(float(paid), 2) if paid is not None else None
+        paid_override = _paid_override(data.get('paid_amount'))
 
         row = fetch_bill_row_fn(bill_id)
         if not row:
@@ -117,25 +202,44 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
         }})
 
     @app.route('/api/thermal/print', methods=['POST'])
+    @_readable_errors
     def thermal_print_bill():
-        """Direct ESC/POS print — no browser dialog."""
-        data = request.get_json(silent=True) or {}
+        """Direct ESC/POS print — no browser dialog.
+
+        Every failure is JSON: {success: false, error_code, stage, message}.
+        One request = at most one send; nothing here retries or switches mode.
+        """
+        data = _json_body()
         bill_id = data.get('bill_id')
         if not bill_id:
-            return jsonify({'success': False, 'message': 'bill_id required'}), 400
+            return jsonify({'success': False, 'error_code': 'invalid_request', 'stage': 'request',
+                            'message': 'bill_id required'}), 400
 
         language = _receipt_language(data.get('language', 'english'))
         bill_type = data.get('bill_type', 'normal')
-        paid = data.get('paid_amount')
-        paid_override = round(float(paid), 2) if paid is not None else None
+        paid_override = _paid_override(data.get('paid_amount'))
 
         mgr = _manager()
         settings = mgr.load_settings()
-        mode = (settings.get('mode') or 'escpos').lower()
+        mode = settings.get('mode')
+
+        # Strict: an invalid/incomplete configuration stops here with the exact
+        # reason. It is never reinterpreted as another mode or another printer.
+        config_errors = validate_settings(settings)
+        if config_errors:
+            return jsonify({
+                'success': False,
+                'mode': mode,
+                'stage': 'config',
+                'error_code': 'invalid_settings',
+                'message': 'Printer settings are invalid: ' + ' '.join(config_errors)
+                           + ' Fix them in Admin → Printer Settings.',
+            }), 400
 
         row = fetch_bill_row_fn(bill_id)
         if not row:
-            return jsonify({'success': False, 'message': f'Bill #{bill_id} not found'}), 404
+            return jsonify({'success': False, 'error_code': 'bill_not_found', 'stage': 'request',
+                            'message': f'Bill #{bill_id} not found'}), 404
 
         ctx = build_print_context_fn(row, language, bill_type, paid_amount_override=paid_override)
         ctx['language'] = language
@@ -155,7 +259,7 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
             return jsonify({
                 'success': True,
                 'mode': 'browser',
-                'message': 'Use browser print fallback',
+                'message': 'Browser print mode (explicitly configured)',
                 'print_url': (
                     f'/print-bill/{bill_id}?language={language}&bill_type={bill_type}'
                     + (f'&paid_amount={paid_override:.2f}' if paid_override is not None else '')
@@ -177,19 +281,22 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
                     'message': 'Send raw data via QZ Tray',
                     'preview': preview,
                     'raw_base64': base64.b64encode(raw).decode('ascii'),
-                    'printer_name': settings.get('qz_printer_name') or settings.get('printer_name') or '',
+                    # QZ mode prints only to its own configured printer (validated above).
+                    'printer_name': settings.get('qz_printer_name'),
                 })
             except Exception as e:
                 logger.exception('QZ raw build failed')
-                return jsonify({'success': False, 'message': str(e)}), 500
+                return jsonify({'success': False, 'mode': 'qz', 'stage': 'receipt',
+                                'error_code': 'receipt_error', 'message': str(e)}), 500
 
         svc = ThermalPrinterService(settings)
         result = svc.print_receipt(ctx)
         result['mode'] = 'escpos'
-        status = 200 if result.get('success') else 500
         if not result.get('success'):
-            logger.error('Print failed bill=%s: %s', bill_id, result.get('message'))
-        return jsonify(result), status
+            logger.error('Print failed bill=%s [%s]: %s', bill_id, result.get('error_code'), result.get('message'))
+            # The bill row exists (checked above): only the printing failed.
+            return _print_failure(result, bill_id=bill_id, bill_saved=True)
+        return jsonify(result), 200
 
     @app.route('/admin/printer', methods=['GET'])
     def admin_printer_page():
@@ -243,17 +350,17 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
         })
 
     @app.route('/api/thermal/raw', methods=['POST'])
+    @_readable_errors
     def thermal_raw_bytes():
         """Return base64 ESC/POS payload for QZ Tray or external tools."""
-        data = request.get_json(silent=True) or {}
+        data = _json_body()
         bill_id = data.get('bill_id')
         if not bill_id:
             return jsonify({'success': False, 'message': 'bill_id required'}), 400
 
         language = _receipt_language(data.get('language', 'english'))
         bill_type = data.get('bill_type', 'normal')
-        paid = data.get('paid_amount')
-        paid_override = round(float(paid), 2) if paid is not None else None
+        paid_override = _paid_override(data.get('paid_amount'))
 
         row = fetch_bill_row_fn(bill_id)
         if not row:
@@ -271,13 +378,14 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
                 'success': True,
                 'preview': preview,
                 'raw_base64': base64.b64encode(raw).decode('ascii'),
-                'printer_name': settings.get('qz_printer_name') or settings.get('printer_name') or '',
+                'printer_name': settings.get('qz_printer_name') or '',
             })
         except Exception as e:
             logger.exception('Raw receipt build failed')
             return jsonify({'success': False, 'message': str(e)}), 500
 
     @app.route('/api/printer/diagnostic-ruler', methods=['GET'])
+    @_readable_errors
     def printer_diagnostic_ruler():
         """
         Print a 48-char ruler to confirm the printer is using full 80mm width.
@@ -342,10 +450,10 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
             gen = EscposGenerator(settings)
             raw = gen.generate_receipt_bytes(lines, rasterize_unicode=False)
             svc = ThermalPrinterService(settings)
-            result = svc._send_raw(raw)
+            svc._send_raw(raw)   # returns nothing; raises on failure
             return jsonify({
-                'success': result.get('success', True),
-                'message': result.get('message', 'Diagnostic ruler sent to printer'),
+                'success': True,
+                'message': 'Diagnostic ruler sent to printer',
                 'paper_width_mm': paper_width,
                 'chars_per_line': chars,
                 'font_mode': font_mode,
@@ -358,7 +466,8 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
             logger.exception('Diagnostic ruler print failed')
             return jsonify({
                 'success': False,
-                'message': str(e),
+                'error_code': getattr(e, 'code', 'printer_error'),
+                'message': str(e) or type(e).__name__,
                 'paper_width_mm': paper_width,
                 'chars_per_line': chars,
                 'font_mode': font_mode,
@@ -588,6 +697,7 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
     # ═════════════════════════════════════════════════════════════════════════
 
     @app.route('/api/printer/hardware-test/raw-raster', methods=['POST'])
+    @_readable_errors
     def printer_hardware_test_raw_raster():
         """TEST 1 — RAW RASTER TEST
 
@@ -670,6 +780,7 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
         })
 
     @app.route('/api/printer/hardware-test/full-bill', methods=['POST'])
+    @_readable_errors
     def printer_hardware_test_full_bill():
         """TEST 2 — FULL TAMIL BILL TEST
 
@@ -820,6 +931,7 @@ def register_printer_routes(app, get_db, build_print_context_fn, fetch_bill_row_
         })
 
     @app.route('/api/printer/hardware-test/confirm', methods=['POST'])
+    @_readable_errors
     def printer_hardware_test_confirm():
         """TEST 4 — OPERATOR PHYSICAL PRINT CONFIRMATION
 

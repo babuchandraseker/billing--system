@@ -108,6 +108,73 @@ def _wrap_words(text: str, width: int) -> list:
     return lines if lines else ['']
 
 
+# ── English (ESC/POS text-mode) width helpers ─────────────────────────────────
+# English receipts print in ESC/POS text mode, where every code point becomes
+# exactly one printed column (a Tamil letter or vowel sign prints as '?').
+# So English columns are counted per code point. _vlen (wcwidth) counts Tamil
+# vowel signs as 0 and would under-measure, pushing lines past 48 columns.
+# For ASCII text _elen == _vlen, so ASCII-only receipts are unchanged.
+
+def _elen(text) -> int:
+    """Printed ESC/POS text-mode width: one column per code point."""
+    return len(str(text or ''))
+
+
+def _en_pad_right(text, width: int) -> str:
+    text = str(text or '')
+    return text + ' ' * max(0, width - _elen(text))
+
+
+def _en_pad_left(text, width: int) -> str:
+    text = str(text or '')
+    return ' ' * max(0, width - _elen(text)) + text
+
+
+def _en_clusters(word: str) -> list:
+    """Split a word into letters, keeping combining marks with their base."""
+    clusters = []
+    for ch in word:
+        if clusters and unicodedata.category(ch) in ('Mn', 'Mc', 'Me'):
+            clusters[-1] += ch
+        else:
+            clusters.append(ch)
+    return clusters
+
+
+def _en_wrap(text, width: int) -> list:
+    """
+    Word-wrap to lines of at most `width` printed columns (English receipts).
+    Unlike _wrap_words, a word longer than `width` is split rather than left to
+    overflow — but never between a letter and its combining marks.
+    """
+    pieces = []
+    for word in str(text or '').split():
+        if _elen(word) <= width:
+            pieces.append(word)
+            continue
+        chunk = ''
+        for cl in _en_clusters(word):
+            if chunk and _elen(chunk + cl) > width:
+                pieces.append(chunk)
+                chunk = ''
+            chunk += cl
+        if chunk:
+            pieces.append(chunk)
+    lines = []
+    current = ''
+    for piece in pieces:
+        candidate = f'{current} {piece}' if current else piece
+        if _elen(candidate) <= width:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = piece
+    if current:
+        lines.append(current)
+    return lines if lines else ['']
+
+
 class ReceiptFormatter:
     """Build plain-text receipt lines from print context dict."""
 
@@ -258,6 +325,13 @@ class ReceiptFormatter:
         lbl = _pad_right(label or '', w)
         return f'{lbl}: {str(value or "").strip()}'
 
+    def _english_value_lines(self, label: str, value, label_w: int) -> list:
+        """English 'Label : value' wrapped to ENGLISH_WIDTH printed columns;
+        continuation lines are indented under the value."""
+        prefix = self._label_value_line(label, '', label_w, False)   # 'Customer     : '
+        chunks = _en_wrap(str(value or '').strip(), self.ENGLISH_WIDTH - _elen(prefix))
+        return [prefix + chunks[0]] + [' ' * _elen(prefix) + c for c in chunks[1:]]
+
     # ── Address helpers ───────────────────────────────────────────────────────
 
     def _wrap_address(self, text: str, tamil: bool = False) -> list:
@@ -387,23 +461,31 @@ class ReceiptFormatter:
     def _format_english_item_row(self, no, name: str, qty, amt) -> list:
         """
         English grid: sno(3) + sp(1) + name(27) + qty_r(5) + sp(1) + amt_r(11) = 48
+
+        A qty/amount wider than its field (e.g. '12.345', '999.999') borrows
+        columns from the name field, so Qty/Amt stay right-aligned and the row
+        stays 48 columns — otherwise ESC/POS cuts the amount's last digits.
         """
         sno_s = str(no)
         qty_s = self._format_qty(qty)
         amt_s = self._format_amt_money(amt)
         indent = ' ' * (self.EN_COL_SNO + self.EN_COL_SEP)  # 4 spaces
 
-        wrapped = _wrap_words(name, self.EN_COL_NAME)
+        qty_w = max(self.EN_COL_QTY, _elen(qty_s))
+        amt_w = max(self.EN_COL_AMT, _elen(amt_s))
+        name_w = self.EN_COL_NAME - (qty_w - self.EN_COL_QTY) - (amt_w - self.EN_COL_AMT)
+
+        wrapped = _en_wrap(name, name_w)
         lines = []
 
         if len(wrapped) == 1:
             line = (
                 _pad_right(sno_s, self.EN_COL_SNO)
                 + ' '
-                + _pad_right(wrapped[0], self.EN_COL_NAME)
-                + _pad_left(qty_s, self.EN_COL_QTY)
+                + _en_pad_right(wrapped[0], name_w)
+                + _en_pad_left(qty_s, qty_w)
                 + ' '
-                + _pad_left(amt_s, self.EN_COL_AMT)
+                + _en_pad_left(amt_s, amt_w)
             )
             lines.append(line)
         else:
@@ -416,10 +498,10 @@ class ReceiptFormatter:
                 else:
                     line = (
                         indent
-                        + _pad_right(chunk, self.EN_COL_NAME)
-                        + _pad_left(qty_s, self.EN_COL_QTY)
+                        + _en_pad_right(chunk, name_w)
+                        + _en_pad_left(qty_s, qty_w)
                         + ' '
-                        + _pad_left(amt_s, self.EN_COL_AMT)
+                        + _en_pad_left(amt_s, amt_w)
                     )
                     lines.append(line)
 
@@ -616,8 +698,26 @@ class ReceiptFormatter:
             cust_str = self._label_value_line(L['customer'], cust_name or '', w_left, tamil) if cust_name else _pad_right('', pad_width)
             phone_str = self._label_value_line(L['phone_cust'], cust_phone, w_right, tamil) if cust_phone else ''
             
-            if cust_name and cust_phone:
-                e('meta', _pad_right(cust_str, pad_width) + phone_str)
+            if tamil:
+                combined = _pad_right(cust_str, pad_width) + phone_str
+            else:
+                combined = _en_pad_right(cust_str, pad_width) + phone_str
+            fits_one_row = tamil or (
+                _elen(cust_str) < pad_width and _elen(combined) <= self.ENGLISH_WIDTH
+            )
+
+            if cust_name and cust_phone and fits_one_row:
+                e('meta', combined)
+            elif cust_name and cust_phone:
+                # English name too long to share a row with the phone: stack
+                # them (one 48+ col row would have ESC/POS cut the phone off).
+                for ln in self._english_value_lines(L['customer'], cust_name, w_left):
+                    e('meta', ln)
+                for ln in self._english_value_lines(L['phone_cust'], cust_phone, w_left):
+                    e('meta', ln)
+            elif cust_name and not tamil:
+                for ln in self._english_value_lines(L['customer'], cust_name, w_left):
+                    e('meta', ln)
             elif cust_name:
                 e('meta', cust_str)
             elif cust_phone:
