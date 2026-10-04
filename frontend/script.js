@@ -313,197 +313,6 @@ const SEARCH_SYNONYMS = {
   'solam':['sorghum'],
 };
 
-// ════════════════════════════════════════════════════
-// PRODUCT IMAGE RESOLVER
-// ════════════════════════════════════════════════════
-//
-// Resolution order for every product card:
-//   1. product.image  — exact filename from the database (e.g. "RAGI.webp")
-//      Populated for all 108+ products that have a matching webp on disk,
-//      plus every image uploaded through the admin panel.
-//   2. WEBP_NAME_MAP  — name-to-filename lookup, fallback for DB-empty products.
-//   3. images/default.webp — always shown when nothing else resolves.
-//
-// The frontend never guesses from product.name; the DB image field is the source of truth.
-// To add an image to a product: go Admin → edit product → upload image.
-// ════════════════════════════════════════════════════
-
-/**
- * Primary image resolver used by every product card.
- * Returns a path like "images/RAGI.webp" or "images/default.webp".
- *   product.image  → exact filename from DB  (e.g. "RAGI.webp")
- *   null / ""      → "images/default.webp"
- */
-function getProductImage(product) {
-    if (product && product.image) { return 'images/' + product.image; }
-    // Fallback: try to resolve from product name
-    const nameEn = product && (product.name_english || product.name_en || product.name || '');
-    if (nameEn) { return getProductImagePath(nameEn, ''); }
-    return 'images/default.webp';
-}
-
-/**
- * WEBP_NAME_MAP — used only as a fallback when product.image is not set.
- * Maps uppercase English product name → exact webp filename on disk.
- */
-const WEBP_NAME_MAP = {
-    // ── Millets ────────────────────────────────────────────────────────────────
-    'FOXTAIL MILLET':                    'foxtail_seeds.webp',
-    'FOXTAIL SEEDS':                     'foxtail_seeds.webp',
-    'RED FOXTAIL MILLET':                'red_foxtail_seeds.webp',
-    'RED FOXTAIL SEEDS':                 'red_foxtail_seeds.webp',
-    'BARNYARD MILLET':                   'barnyard_millet.webp',
-    'LITTLE MILLET':                     'samai.webp',
-    'SAMAI':                             'samai.webp',
-    'PEARL MILLET':                      'pearl_millet.webp',
-    'KODO MILLET':                       'kodo_millet.webp',
-    'KODO MILLET RICE':                  'kodo_millet_rice.webp',
-    'VARAGU MILLET':                     'pani_varagu.webp',
-    'PANI VARAGU':                       'pani_varagu.webp',
-    'VARAGU MILLET RICE':                'varagu_millet_rice.webp',
-    'BROWNTOP MILLET':                   'finger_millet.webp',
-    'FINGER MILLET':                     'finger_millet.webp',
-    'FINGER MILLET (RAGI)':              'ragi.webp',
-    'RAGI':                              'ragi.webp',
-    'PEARL MILLET (NATIVE)':             'pearl_millet.webp',
-    'FOXTAIL MILLET (GRADE 2)':          'foxtail_seeds.webp',
-    'FOX MILLET':                        'fox_millet.webp',
-    'BLACK MILLET':                      'black_millet.webp',
-    'GREEN MILLET':                      'green_millet.webp',
-    'RED MILLET':                        'red_millet.webp',
-    'WHITE MILLET':                      'white_millet.webp',
-    'YELLOW MILLET':                     'yellow_millet.webp',
-    'WHITE SORGHUM':                     'white_sorghum.webp',
-    'RED SORGHUM':                       'red_sorghum.webp',
-    'DARK SORGHUM':                      'dark_sorghum.webp',
-    // ── Rice & Grains ──────────────────────────────────────────────────────────
-    'RED RICE':                          'red_rice.webp',
-    'BLACK RICE':                        'black_rice.webp',
-    'KARUNGURUVAI BLACK RICE':           'karunguruvai_black_rice.webp',
-    'MAPPILLAI SAMBA RICE':              'mappillai_samba_rice.webp',
-    'BAMBOO RICE':                       'bamboo_rice.webp',
-    'RICE':                              'rice.webp',
-    'PADDY (RAW RICE)':                  'paddy.webp',
-    'PADDY':                             'paddy.webp',
-    'BUCKWHEAT':                         'buckwheat.webp',
-    'WHEAT':                             'wheat.webp',
-    'SAMBA WHEAT':                       'samba_wheat.webp',
-    'OATS':                              'long_oats.webp',
-    'LONG OATS':                         'long_oats.webp',
-    'ROLLED OATS':                       'peeled_oats.webp',
-    'PEELED OATS':                       'peeled_oats.webp',
-    'QUINOA':                            'quinoa.webp',
-    'BARLEY':                            'barley.webp',
-    'BARLEY HUSK':                       'barley_husk.webp',
-    'POPCORN':                           'popcorn.webp',
-    'SWEET CORN':                        'sweet_corn.webp',
-    'DRIED FIELD CORN':                  'dried_field_corn.webp',
-    // ── Seeds ──────────────────────────────────────────────────────────────────
-    'SUNFLOWER SEEDS':                   'sunflower_seeds.webp',
-    'BIG SUNFLOWER SEEDS':               'big_sunflower_seeds.webp',
-    'PEALED SUNFLOWER SEED':             'pealed_sunflower_seed.webp',
-    'BLACK SESAME SEEDS':                'black_sesame_seeds.webp',
-    'WHITE SESAME SEEDS':                'white_sesame_seeds.webp',
-    'CHIA SEEDS':                        'chia_seeds.webp',
-    'CUCUMBER SEEDS':                    'cucumber_seeds.webp',
-    'PUMPKIN SEEDS':                     'pumpkin_seeds.webp',
-    'POPPY SEEDS':                       'poppy_seeds.webp',
-    'MUSTARD SEEDS':                     'mustard_seeds.webp',
-    'FENUGREEK SEEDS':                   'fenugreek_seeds.webp',
-    'MORINGA SEEDS':                     'moringa_seeds.webp',
-    'NIGER SEEDS':                       'niger_seeds.webp',
-    'ALFALFA SEEDS':                     'alfalfa_seeds.webp',
-    'CANARY SEEDS':                      'canary_seeds.webp',
-    'DILL SEEDS':                        'dill_seeds.webp',
-    'FLAX SEEDS':                        'flax_seeds.webp',
-    'MILK THISTLE SEEDS':                'milk_thistle_seeds.webp',
-    // ── Pulses / Protein ───────────────────────────────────────────────────────
-    'GREEN GRAM (MOONG)':                'green_gram.webp',
-    'GREEN GRAM':                        'green_gram.webp',
-    'HORSE GRAM':                        'horse_gram.webp',
-    'BLACK URAD DAL':                    'black_urad.webp',
-    'BLACK URAD':                        'black_urad.webp',
-    'RED LENTIL (MASOOR DAL)':           'red_lentil.webp',
-    'RED LENTIL':                        'red_lentil.webp',
-    'SOYBEAN':                           'soya.webp',
-    'SOYA':                              'soya.webp',
-    'FIELD BEANS':                       'field_beans.webp',
-    'RED PIGEON PEA':                    'red_pigeon_pea.webp',
-    'RED COW PEA':                       'red_cowpea.webp',
-    'WHITE PIGEON PEA':                  'white_pigeon_pea.webp',
-    'KIDNEY BEANS (RAJMA)':              'kidney_beans.webp',
-    'KIDNEY BEANS':                      'kidney_beans.webp',
-    'CHICKPEAS':                         'chickpeas.webp',
-    'WHITE CHICKPEAS':                   'white_chickpeas.webp',
-    'WHITE PEAS':                        'white_peas.webp',
-    'GREEN PEAS':                        'green_peas.webp',
-    // ── Nuts ───────────────────────────────────────────────────────────────────
-    'ALMONDS':                           'almond.webp',
-    'ALMOND':                            'almond.webp',
-    'CASHEW':                            'cashew_nut.webp',
-    'CASHEW NUT':                        'cashew_nut.webp',
-    'WALNUT':                            'walnut.webp',
-    'PISTACHIO':                         'pistachio.webp',
-    'GOLDEN GROUNDNUT':                  'golden_groundnut.webp',
-    'GROUNDNUT (PEANUT)':                'groundnut.webp',
-    'GROUNDNUT':                         'groundnut.webp',
-    'CHAROLI':                           'charoli.webp',
-    // ── Spices ─────────────────────────────────────────────────────────────────
-    'CUMIN SEEDS':                       'cumin.webp',
-    'CUMIN':                             'cumin.webp',
-    'BLACK CUMIN (NIGELLA / KALONJI)':   'black_cumin.webp',
-    'BLACK CUMIN':                       'black_cumin.webp',
-    'MUSTARD':                           'mustard_seeds.webp',
-    'FENUGREEK':                         'fenugreek_seeds.webp',
-    // ── Supplements / Other ────────────────────────────────────────────────────
-    'HONEY':                             'honey.webp',
-    'RAISINS':                           'raisin.webp',
-    'RAISIN':                            'raisin.webp',
-    'ALMOND GUM (BADAM PISIN)':          'almond_gum.webp',
-    'ALMOND GUM':                        'almond_gum.webp',
-    // ── Other named products on disk ───────────────────────────────────────────
-    'SALIYAL':                           'saliyal.webp',
-    'SALAIYAL':                          'saliyal.webp',
-    'TURMERIC POWDER':                   'turmeric_podwer.webp',
-    'TURMERIC PODWER':                   'turmeric_podwer.webp',
-    'NAMAKKARAMANI':                     'namakkaramani.webp',
-    'THAM POWDER':                       'tham_powder.webp',
-    'UTCHA KADALI':                      'utcha_kadali.webp',
-    'EGG SHELL':                         'egg_shell.webp',
-    'EGGSHELL':                          'egg_shell.webp',
-    'EGGSHELL POWDER':                   'egg_shell.webp',
-    'EMBU':                              'embu.webp',
-    'EMBU SEEDS':                        'embu_seeds.webp',
-    'GRET':                              'gret.webp',
-    'KEERAI':                            'keerai.webp',
-    'KATTU YANAM':                       'kattu_yanam.webp',
-    'LIMESTONE':                         'limestone.webp',
-    'LIME STONE':                        'limestone.webp',
-    'LIME STONE POWDER':                 'limestone.webp',
-    'LIME STONE POWDER 250G':            'limestone.webp',
-    'HAMSTER PELLETS':                   'hamster_pellets.webp',
-    'HAMSTER PELLET':                    'hamster_pellets.webp',
-    'HAMSTER':                           'hamster_pellets.webp',
-    'RABBIT PELLETS':                    'rabbit_pellets.webp',
-    'RABBIT PELLET':                     'rabbit_pellets.webp',
-    'RED COWPEA':                        'red_cowpea.webp',
-    'RED COW PEA':                       'red_cowpea.webp',
-    'SAPOLA':                            'SAPOLA_SEEDS.webp',
-    'SAPOLA SEEDS':                      'SAPOLA_SEEDS.webp',
-    'SAFFLOWER SEEDS':                   'SAPOLA_SEEDS.webp',
-    'STARTER (SKM)':                     'STARTER(SKM).webp',
-    'STARTER(SKM)':                      'STARTER(SKM).webp',
-    'STARTER (SKM FEED)':                'STARTER(SKM).webp',
-    'STARTER FEED 5KG':                  'STARTER(SKM).webp',
-    'KADAMOZHU PACKET 500G':             'KADAMOZHU PACKET 500g.webp',
-    'KADAMOZHU':                         'KADAMOZHU PACKET 500g.webp',
-};
-
-/**
- * getProductImagePath — fallback resolver for products where product.image is not set.
- * Used by _buildProductCard; always returns a valid path (never null).
- */
-
 // ── PRICING MODE ──────────────────────────────────────────────────────────────
 let _pendingPriceMode = null;
 let _priceModeInitialized = false;
@@ -623,35 +432,6 @@ function buildCategoryPills() {
         btn.textContent = (CAT_EMOJI[cat] || '📦') + ' ' + cat;
         container.appendChild(btn);
     });
-}
-
-function _normalizeToFilename(name) {
-    // Normalize product name to match image filename format:
-    // lowercase, remove brackets & special chars, spaces→underscore
-    let s = name.toLowerCase();
-    s = s.replace(/\([^)]*\)/g, '');       // remove (bracketed) text
-    s = s.replace(/[^a-z0-9\s]/g, '');      // keep only alnum + spaces
-    s = s.trim().replace(/\s+/g, '_');       // spaces → underscore
-    return s;
-}
-
-function getProductImagePath(nameEn, imgField) {
-    // If DB field is set, use it directly — no guessing needed
-    if (imgField) { return 'images/' + imgField; }
-
-    // Name-map fallback for products not yet in the DB
-    if (nameEn) {
-        const up     = nameEn.trim().toUpperCase();
-        const before = up.split('(')[0].trim();
-        if (WEBP_NAME_MAP[up])     { return 'images/' + WEBP_NAME_MAP[up]; }
-        if (WEBP_NAME_MAP[before]) { return 'images/' + WEBP_NAME_MAP[before]; }
-
-        // Smart normalize fallback: try lowercase_underscored.webp
-        const normalized = _normalizeToFilename(nameEn);
-        if (normalized) { return 'images/' + normalized + '.webp'; }
-    }
-
-    return 'images/default.webp';
 }
 
 // ════════════════════════════════════════════════════
@@ -1384,70 +1164,125 @@ function matchesSearch(p, rawQ) {
     return false;
 }
 
+// ── Search ranking ──────────────────────────────────────────────────────────
+// matchesSearch() decides WHICH products are shown; _searchRank() only decides
+// their ORDER, so the best match is first and Enter adds it. Lower = better:
+//   0 exact product code (P52)
+//   1 exact English or Tamil name
+//   2 exact Tanglish name or registered alias (search_terms / search_tags)
+//   3 English / Tamil / Tanglish name starts with the query
+//   4 English / Tamil / Tanglish name contains the query
+//   5 any other existing rule (tags, synonyms, prefix, fuzzy)
+function _normSearch(s) {
+    return String(s || '').toLowerCase().replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function _searchRank(p, rawQ) {
+    const q = _normSearch(rawQ);
+    if (!q) return 5;
+    if (_normSearch(p.shortcode) === q) return 0;
+
+    const enFull = p.name_english || p.name_en || '';
+    const en  = _normSearch(enFull);
+    const enBase = _normSearch(enFull.replace(/\([^)]*\)/g, ' '));   // "Foxtail Millet (Thinai)" → "foxtail millet"
+    const ta  = _normSearch(p.name_tamil || p.name_ta || '');
+    const tg  = _normSearch(p.name_tanglish || '');
+    if (q === en || q === enBase || q === ta) return 1;
+
+    // Registered aliases: search_terms / search_tags entries that are not just
+    // words of the product's own names (the backend adds those words automatically).
+    const enWords = new Set([en, ta, tg].join(' ').split(' '));
+    const aliases = [];
+    if (Array.isArray(p.search_terms)) p.search_terms.forEach(t => { if (typeof t === 'string') aliases.push(_normSearch(t)); });
+    String(p.search_tags || '').split(/[\s,]+/).forEach(t => aliases.push(_normSearch(t)));
+    (enFull.match(/\(([^)]*)\)/g) || []).forEach(t => aliases.push(_normSearch(t)));   // "(Thinai)"
+    if (q === tg || aliases.some(a => a && a === q && !enWords.has(a))) return 2;
+
+    const names = [en, ta, tg].filter(Boolean);
+    if (names.some(n => n.startsWith(q))) return 3;
+    if (names.some(n => n.includes(q)))   return 4;
+    return 5;
+}
+
+/** Orders products: by search rank when a query is given, then catalog S.NO, then name. */
+function _sortProductList(list, query) {
+    const q = (query || '').trim();
+    const rank = new Map();
+    if (q) list.forEach(p => rank.set(p, _searchRank(p, q)));
+    return list.sort((a, b) => {
+        if (q) {
+            const ra = rank.get(a), rb = rank.get(b);
+            if (ra !== rb) return ra - rb;
+        }
+        const sa = (a.serial_no === null || a.serial_no === undefined || a.serial_no === '') ? Infinity : Number(a.serial_no);
+        const sb = (b.serial_no === null || b.serial_no === undefined || b.serial_no === '') ? Infinity : Number(b.serial_no);
+        if (sa !== sb) return sa - sb;
+        return (a.displayName || '').localeCompare(b.displayName || '');
+    });
+}
+
 // ════════════════════════════════════════════════════
-// PRODUCT CARD HTML BUILDER  (shared by initial + lazy appends)
+// PRODUCT ROW HTML BUILDER  (shared by initial + lazy appends)
+// Text-only POS rows. Rows keep the .pcard class and pcard-<id> ids so the
+// existing keyboard navigation, Enter-to-add and F2 shortcuts work unchanged.
 // ════════════════════════════════════════════════════
+function _buildProductListHeader() {
+    return `
+        <div class="plist-head" aria-hidden="true">
+          <span class="pr-sno">S.No</span>
+          <span class="pr-code">Code</span>
+          <span class="pr-name">Product</span>
+          <span class="pr-cat">Category</span>
+          <span class="pr-price">Price ₹/kg <em>${getPriceModeLabel()}</em></span>
+          <span class="pr-stock">Stock</span>
+          <span class="pr-add"></span>
+        </div>`;
+}
+
 function _buildProductCard(p) {
-    // Use product.image (DB field) directly — no name guessing.
-    // getProductImagePath falls back to WEBP_NAME_MAP for products with no DB image.
-    const localImg = getProductImagePath(p.name_english || p.name_en || p.name || '', p.image || '');
-    const fallbackEmoji = p.emoji || '🌿';
-    // On image error: hide img, show emoji span as fallback.
-    const imgHtml = `<img src="${localImg}" alt="${p.displayName}" class="pcard-img" loading="lazy" width="120" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.onerror=null;"/><span class="pcard-emoji" style="display:none">${fallbackEmoji}</span>`;
-    let stockBadge = '';
+    const en = (p.name_english || p.name_en || p.name || '').trim();
+    const ta = (p.name_tamil  || p.name_ta  || '').trim();
+    let stockCell = '<span class="pr-stock pr-stock-na">—</span>';
     const st = (p.stock !== null && p.stock !== undefined) ? parseFloat(p.stock) : null;
     if (st !== null) {
-        if (st <= 0)  stockBadge = `<div class="pcard-stock pcard-stock-out">📭 Stock: 0 kg</div>`;
-        else if (st < 5) stockBadge = `<div class="pcard-stock pcard-stock-low">⚠️ Low: ${st.toFixed(2)} kg</div>`;
-        else             stockBadge = `<div class="pcard-stock pcard-stock-ok">📦 ${st.toFixed(2)} kg</div>`;
+        if (st <= 0)     stockCell = `<span class="pr-stock pr-stock-out">0 kg</span>`;
+        else if (st < 5) stockCell = `<span class="pr-stock pr-stock-low">Low ${st.toFixed(2)}</span>`;
+        else             stockCell = `<span class="pr-stock">${st.toFixed(2)} kg</span>`;
     }
-    // No oosClass — card always fully clickable regardless of stock level
-    // S.NO (catalog serial number) — shown as a small badge top-left of the card
-    const sno = (p.serial_no !== null && p.serial_no !== undefined && p.serial_no !== '') ? p.serial_no : '';
-    const snoBadge = sno !== '' ? `<span class="pcard-sno" title="Catalog S.NO">#${sno}</span>` : '';
+    // Stock is informational only — the row is always clickable.
+    const sno = (p.serial_no !== null && p.serial_no !== undefined && p.serial_no !== '') ? p.serial_no : '—';
+    // Code column shows the searchable code (DB id, e.g. P52) — type it in the search box to find the product.
     return `
-        <div class="pcard" id="pcard-${p.id}" onclick="openWeightModal('${p.id}')" role="button">
-          <div class="pcard-img-wrapper">
-            ${imgHtml}
-            ${snoBadge}
-            <span class="pcard-badge">${p.category}</span>
-          </div>
-          <div class="pcard-info">
-            <h3 class="pcard-title">${p.displayName}</h3>
-            <div class="pcard-meta">
-              <span class="pcard-price"><span class="currency">₹</span><span class="value">${p.price_per_kg}</span><small>/kg</small><span class="pcard-price-mode">${getPriceModeLabel()}</span></span>
-              <span class="pcard-code">${p.shortcodeLabel || p.shortcode}</span>
-            </div>
-            ${stockBadge}
-            <div class="pcard-action">
-              <span class="tap-icon">➕</span><span class="tap-text">Tap to add</span>
-            </div>
-          </div>
+        <div class="pcard" id="pcard-${p.id}" onclick="openWeightModal('${p.id}')" role="button" title="${_h(p.displayName)}">
+          <span class="pr-sno">${sno}</span>
+          <span class="pr-code">${p.shortcode}</span>
+          <span class="pr-name"><strong>${en}</strong>${ta ? `<span class="pr-ta">${ta}</span>` : ''}</span>
+          <span class="pr-cat">${p.category || ''}</span>
+          <span class="pr-price"><span class="currency">₹</span><span class="value">${p.price_per_kg}</span></span>
+          ${stockCell}
+          <span class="pr-add">+ Add</span>
         </div>`;
 }
 
 function _buildPackageCard(pkg) {
-    const hasImg = pkg.image && pkg.image !== '';
-    const imgHtml = hasImg
-        ? `<img src="images/${pkg.image}" alt="${pkg.name_english||''}" class="pcard-img" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';this.onerror=null;" /><span class="pcard-emoji" style="display:none">${pkg.emoji||'📦'}</span>`
-        : `<span class="pcard-emoji">${pkg.emoji||'📦'}</span>`;
     return `
         <div class="pcard pcard-package" id="pcard-${pkg.id}" onclick="openPackageModal('${pkg.id}')" role="button">
-          <div class="pcard-img-wrapper">
-            ${imgHtml}
-            <span class="pcard-badge" style="background:#7c3aed;">Bundle</span>
-          </div>
-          <div class="pcard-info">
-            <h3 class="pcard-title">${pkg.name_english || pkg.name_en} (${pkg.name_tamil || pkg.name_ta})</h3>
-            <div class="pcard-meta">
-              <span class="pcard-price" style="color:#7c3aed;"><span class="currency">₹</span><span class="value">${pkg.price_per_kg}</span><small>/kg</small></span>
-              <span class="pcard-code" style="background:#ede9fe;color:#7c3aed;">${pkg.items.length} items</span>
-            </div>
-            <div class="pcard-action">
-              <span class="tap-icon">📦</span><span class="tap-text">Configure &amp; Add</span>
-            </div>
-          </div>
+          <span class="pr-sno">—</span>
+          <span class="pr-code">Bundle</span>
+          <span class="pr-name"><strong>${pkg.name_english || pkg.name_en}</strong><span class="pr-ta">${pkg.name_tamil || pkg.name_ta || ''}</span></span>
+          <span class="pr-cat">${pkg.items.length} items</span>
+          <span class="pr-price"><span class="currency">₹</span><span class="value">${pkg.price_per_kg}</span></span>
+          <span class="pr-stock pr-stock-na">—</span>
+          <span class="pr-add">Configure</span>
         </div>`;
+}
+
+/** Marks product rows already in the current bill (visual feedback after adding). */
+function _markCartRows() {
+    const inCart = new Set(cart.filter(i => i.product).map(i => i.product.id));
+    document.querySelectorAll('#products-grid .pcard:not(.pcard-package)').forEach(row => {
+        row.classList.toggle('in-cart', inCart.has(row.id.slice(6)));
+    });
 }
 
 // ════════════════════════════════════════════════════
@@ -1498,14 +1333,10 @@ function renderProducts(data) {
             list = list.filter(p => (p.category || '').toLowerCase() === activeCat.toLowerCase());
         }
     }
-    // PRIMARY ordering: catalog serial_no (S.NO). Fallback: name.
-    // Products without a serial_no sort to the bottom in alphabetical order.
-    list.sort((a, b) => {
-        const sa = (a.serial_no === null || a.serial_no === undefined || a.serial_no === '') ? Infinity : Number(a.serial_no);
-        const sb = (b.serial_no === null || b.serial_no === undefined || b.serial_no === '') ? Infinity : Number(b.serial_no);
-        if (sa !== sb) return sa - sb;
-        return (a.displayName || '').localeCompare(b.displayName || '');
-    });
+    // When searching: best match first (see _searchRank). Otherwise, and within
+    // the same rank: catalog serial_no (S.NO), then name — products without a
+    // serial_no sort to the bottom in alphabetical order.
+    _sortProductList(list, query_text);
     _lazyList = list;
 
     // Update product count badge
@@ -1535,7 +1366,8 @@ function renderProducts(data) {
     const firstBatch = _lazyList.slice(0, PAGE_SIZE);
     _lazyRendered    = firstBatch.length;
 
-    grid.innerHTML   = pkgHtml + firstBatch.map(_buildProductCard).join('');
+    grid.innerHTML   = _buildProductListHeader() + pkgHtml + firstBatch.map(_buildProductCard).join('');
+    _markCartRows();
 
     // ── If there are more products, attach the IntersectionObserver ──────────
     if (_lazyRendered < _lazyList.length) {
@@ -1595,6 +1427,7 @@ function _appendNextPage() {
 
     _lazyRendered += nextBatch.length;
     _lazyLoading   = false;
+    _markCartRows();
 
     _updateLazyCounter();
 
@@ -2024,7 +1857,7 @@ function openWeightModal(productId) {
 
     // Stock is informational only — low/zero stock shows a badge on the card
     // but does NOT block adding the product to the bill
-    document.getElementById('wt-emoji').textContent = modalProduct.emoji || '🌿';
+    document.getElementById('wt-emoji').textContent = modalProduct.shortcode || '';
     document.getElementById('wt-name').textContent  = modalProduct.displayName;
     document.getElementById('wt-price').innerHTML = `<span class="currency">₹</span><span class="value">${modalProduct.price_per_kg}/kg (${getPriceModeLabel()})</span>`;
     document.getElementById('wt-input').value       = '1';
@@ -2566,6 +2399,7 @@ function renderCart() {
         footerEl.style.display = 'none';
         const _actBar = document.getElementById('bill-actions-bar');
         if (_actBar) _actBar.style.display = 'none';
+        _markCartRows();
         return;
     }
     footerEl.style.display = 'flex';
@@ -2610,7 +2444,10 @@ function renderCart() {
             ? `<span class="temp-badge"><span class="currency">₹</span><span class="value">${temp_price_per_kg}/kg</span> temp</span>` : '';
         return `
         <div class="cart-item">
-          <span class="cart-item-inline-name" title="${product.displayName}">${product.emoji||'🌿'} ${product.displayName} ${tempBadge}</span>
+          <div class="ci-namewrap">
+            <span class="cart-item-inline-name" title="${product.displayName}">${product.displayName} ${tempBadge}</span>
+            <span class="ci-meta">${product.shortcode || ''} · ₹${pricePerKg}/kg</span>
+          </div>
           <div class="ci-controls">
             <button class="ci-wt-btn minus" onclick="adjustQty('${product.id}',-${STEP_G})">−</button>
             <input type="number" class="ci-wt-input" value="${weight_g >= 1000 ? (weight_g/1000).toFixed(2) : weight_g}"
@@ -2627,6 +2464,7 @@ function renderCart() {
         </div>`;
     }).join('');
     calcBalance();
+    _markCartRows();
     // Refresh loyalty panel so Apply button shows/hides based on current cart total
     _refreshLoyaltyApplyBtn();
 
@@ -3344,9 +3182,6 @@ function renderAdminList() {
     });
     if (!list.length) { el.innerHTML='<p style="color:#888;padding:10px;">No products found</p>'; return; }
     el.innerHTML = list.map(p => {
-        const imgHtml = p.image
-            ? `<img src="images/${p.image}" class="adm-thumb" loading="lazy" onerror="this.style.display='none'"/>`
-            : `<span class="adm-emoji">${p.emoji||'🌿'}</span>`;
         const st = (p.stock !== null && p.stock !== undefined) ? parseFloat(p.stock) : null;
         let stockLabel = '<span class="adm-stock-na">—</span>';
         if (st !== null) {
@@ -3357,7 +3192,6 @@ function renderAdminList() {
         const sno = (p.serial_no !== null && p.serial_no !== undefined && p.serial_no !== '') ? p.serial_no : '—';
         return `<div class="adm-row" onclick="openEditModal('${p.id}')">
           <span class="adm-sno" title="Catalog S.NO">${sno}</span>
-          ${imgHtml}
           <span class="adm-pname">${p.displayName}</span>
           <span class="adm-pprice">S:<span class="currency">₹</span><span class="value">${p.s_rate||p.price_per_kg}</span> / P:<span class="currency">₹</span><span class="value">${p.p_rate||'—'}</span> ${p.wholesale_rate ? '/ W:<span class="currency">₹</span><span class="value">'+p.wholesale_rate+'</span>' : ''}</span>
           ${stockLabel}
@@ -4808,15 +4642,10 @@ function renderProductPicker() {
     // Store filtered list for index-based access (safe for Tamil names)
     window._pickerFiltered = filtered.slice(0, 80);
     list.innerHTML = window._pickerFiltered.map((p, idx) => {
-        // Use correct getProductImage function (not getProductImagePath which takes (nameEn, imgField))
-        const imgPath = getProductImage(p);
-        const imgHtml = imgPath && imgPath !== 'images/default.webp'
-            ? `<img src="${imgPath}" loading="lazy" style="width:42px;height:42px;object-fit:cover;border-radius:6px;flex-shrink:0;" onerror="this.style.display='none'" />`
-            : `<div style="width:42px;height:42px;border-radius:6px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${p.emoji||'🌿'}</div>`;
         return `
         <div class="picker-item" data-idx="${idx}"
-          style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .12s;background:#fff;">
-          ${imgHtml}
+          style="display:flex;align-items:center;gap:12px;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .12s;background:#fff;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted);min-width:44px;font-variant-numeric:tabular-nums;">${p.shortcode||''}</span>
           <div style="flex:1;min-width:0;">
             <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name_english||''}</div>
             <div style="font-size:12px;color:var(--muted);">${p.name_tamil||''} ${p.category ? '· '+p.category : ''}</div>

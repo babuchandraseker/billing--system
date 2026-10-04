@@ -1099,6 +1099,92 @@ class PrintFailureHandling(unittest.TestCase):
         self.assertEqual((len(p.writes), p.closed), (1, 1))
 
 
+class SearchRanking(unittest.TestCase):
+    """POS search: the best match is listed first so Enter adds the right product.
+    Real search/render functions from script.js run in Node
+    (tests/js/search_rank_harness.js) on fixture data and on this DB's /products."""
+
+    @classmethod
+    def setUpClass(cls):
+        node = shutil.which('node')
+        if not node:
+            raise unittest.SkipTest('node is not installed')
+        products = os.path.join(_ENV, 'products_for_search.json')
+        with open(products, 'w', encoding='utf-8') as fh:
+            json.dump(client().get('/products').json, fh, ensure_ascii=False)
+        out = subprocess.run([node, os.path.join(PROJECT, 'tests', 'js', 'search_rank_harness.js'), products],
+                             capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            raise AssertionError(out.stderr)
+        cls.results = json.loads(out.stdout)
+        if 'harness_error' in cls.results:
+            raise AssertionError(cls.results['harness_error'])
+
+    def q(self, query, data='fixture'):
+        return self.results[data][query]
+
+    def test_ragi_ranks_finger_millet_above_amaranth(self):
+        for query in ('ragi', 'Ragi'):
+            r = self.q(query)
+            self.assertEqual(r['order'][:2], ['p14', 'p220'])        # S.NO order alone puts p220 first
+            self.assertEqual(r['first_rendered_row'], 'p14')
+
+    def test_ragi_on_real_product_data(self):
+        r = self.results['real']['ragi']
+        if not {'p14', 'p220'} <= set(r['matched']):
+            self.skipTest('shop products P14/P220 not in this database')
+        self.assertLess(r['order'].index('p14'), r['order'].index('p220'))
+        self.assertLess(r['ranks']['p14'], r['ranks']['p220'])
+        # The test DB also seeds t_ragi named exactly "Ragi" — an exact name, so it may lead.
+        self.assertEqual(r['first_rendered_row'], r['order'][0])
+        self.assertIn(r['order'][0], ('p14', 't_ragi'))
+
+    def test_exact_code_first(self):
+        for query in ('P52', 'p52'):
+            r = self.q(query)
+            self.assertEqual(r['order'][0], 'p52')                   # before p520 (S.NO 1)
+            self.assertEqual(r['ranks']['p52'], 0)
+            self.assertIn('p520', r['order'])                         # partial code match still listed
+
+    def test_exact_english_and_tamil_names(self):
+        for query in ('finger millet', 'Finger Millet', 'கேழ்வரகு'):
+            self.assertEqual(self.q(query)['order'][0], 'p14')
+            self.assertEqual(self.q(query)['ranks']['p14'], 1)
+        self.assertEqual(self.q('pearl millet')['order'][0], 'p15')  # exact beats "Native Pearl Millet"
+        self.assertEqual(self.q('தினை')['order'][0], 'p1')
+
+    def test_exact_tanglish_and_alias(self):
+        self.assertEqual(self.q('keezhvaraku')['order'][0], 'p14')
+        self.assertEqual(self.q('kampu')['order'][:2], ['p15', 'p5'])   # exact Tanglish before "naattukampu"
+        self.assertEqual(self.q('thinai')['order'][0], 'p1')            # exact Tanglish before "sivappu thinai"
+        self.assertEqual(self.q('rajgira')['order'], ['p220'])          # registered alias "(rajgira)"
+
+    def test_partial_matches_still_listed(self):
+        self.assertEqual(set(self.q('thinai')['order']), {'p1', 'p2', 'p9'})
+        self.assertEqual(set(self.q('millet')['order']), {'p1', 'p2', 'p5', 'p9', 'p14', 'p15'})
+        self.assertEqual(self.q('urad')['order'], ['p52'])
+        self.assertEqual(self.q('kambu')['order'], ['p5', 'p15'])       # synonym rule, S.NO order
+        self.assertEqual(self.q('zzzz')['order'], [])
+
+    def test_ranking_never_changes_which_products_match(self):
+        for data in ('fixture', 'real'):
+            for query, r in self.results[data].items():
+                self.assertEqual(sorted(r['order']), sorted(r['matched']), (data, query))
+
+    def test_enter_adds_top_ranked_row(self):
+        # Enter in the search box adds the highlighted row, else the first row —
+        # which the harness shows is the top-ranked product.
+        with open(os.path.join(PROJECT, 'frontend', 'script.js'), encoding='utf-8') as fh:
+            js = fh.read()
+        start = js.index("if (document.activeElement?.id === 'productSearch') {")
+        branch = js[start:js.index("if (e.altKey && e.key.toLowerCase() === 's')", start)]
+        self.assertIn("document.querySelector('#products-grid .pcard.kb-focus')", branch)
+        self.assertIn("highlighted || document.querySelector('#products-grid .pcard')", branch)
+        self.assertIn('_highlightCard(0)', branch)                    # typing highlights the first row
+        for r in self.results['fixture'].values():
+            self.assertEqual(r['first_rendered_row'], r['order'][0] if r['order'] else None)
+
+
 class PrintFlowFrontend(unittest.TestCase):
     """G9 / G10: the real POS print functions from script.js, run in Node with a
     fake server (tests/js/print_flow_harness.js)."""

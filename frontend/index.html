@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Tamil:wght@400;600;700&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=20" />
+  <link rel="stylesheet" href="style.css?v=21" />
 </head>
 
 <body>
@@ -93,7 +93,7 @@
                 <path d="M13.5 13.5L17 17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
               </svg>
               <input type="text" id="productSearch" class="no-enter-nav"
-                placeholder="Search by name, Tamil or Tanglish…" oninput="renderProducts()" autocomplete="off" />
+                placeholder="Search by code (P52), English, Tamil or Tanglish name…" oninput="renderProducts()" autocomplete="off" />
             </div>
             <div class="product-count-badge" id="product-count-badge">218 products</div>
           </div>
@@ -1054,7 +1054,7 @@
   <div id="wt-modal" class="wt-modal" tabindex="-1" role="dialog" aria-modal="true">
     <div class="wt-modal-header">
       <div style="display:flex;align-items:center;gap:10px;">
-        <span id="wt-emoji" style="font-size:28px;">🌿</span>
+        <span id="wt-emoji" class="wt-code" title="Product code"></span>
         <div>
           <div id="wt-name" style="font-weight:700;font-size:16px;"></div>
           <div id="wt-price" style="color:var(--blue);font-size:13px;font-weight:600;"></div>
@@ -1194,7 +1194,7 @@
   <script src="tamil-transliterate.js"></script>
   <script src="tamil-keyboard.js"></script>
   <script src="qz-tray-print.js"></script>
-  <script src="script.js?v=20"></script>
+  <script src="script.js?v=21"></script>
 
   <!-- ══ LOYALTY STARS PATCH — clean single-section renderer ══
      Overrides whatever script.js renders into #loyalty-panel.
